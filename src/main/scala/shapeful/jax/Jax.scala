@@ -110,3 +110,13 @@ object Jax:
           s"Failed to import jax.scipy.stats module. Make sure SciPy is installed: ${e.getMessage}",
           e
         )
+
+  lazy val lax =
+    configurePythonPath
+    try py.module("jax.lax")
+    catch
+      case e: Exception =>
+        throw new RuntimeException(
+          s"Failed to import JAX Lax module. Make sure JAX is installed: ${e.getMessage}",
+          e
+      )

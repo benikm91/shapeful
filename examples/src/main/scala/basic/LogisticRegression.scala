@@ -46,7 +46,6 @@ object LogisticRegression:
     val dfShuffled = scala.util.Random.shuffle(df)
 
     val learningRate = 3e-1f
-    val numSamples = 1000
     val key = Random.Key(42)
 
     val numFeatures = 4
@@ -66,23 +65,32 @@ object LogisticRegression:
       .flatten
     val labelData = dfShuffled.column["species"].toArray.map(_.toFloat)
 
-    val trainingDataUnnormalized = Tensor2.fromArray(
+    val dataUnnormalized = Tensor2.fromArray(
       Shape(Axis[Sample] -> df.length, Axis[Feature] -> numFeatures),
       ArraySeq.unsafeWrapArray(featureData)
     )
-    val labels = Tensor1.fromArray(Axis[Sample], ArraySeq.unsafeWrapArray(labelData))
+    val numTrainSamples = (df.length * 80) / 100
+    val (trainingDataUnnormalized, valDataUnnormalized) = dataUnnormalized.split(Axis[Sample], numTrainSamples)
+    val dataLabels = Tensor1.fromArray(Axis[Sample], ArraySeq.unsafeWrapArray(labelData))
+    val (trainLabels, valLabels) = dataLabels.split(Axis[Sample], numTrainSamples)
 
-    def standardize(t: Tensor2[Sample, Feature]): Tensor2[Sample, Feature] =
+    def calcMeanAndStd(t: Tensor2[Sample, Feature]): (Tensor1[Feature], Tensor1[Feature]) =
       val mean = t.vmap(Axis[Feature]) { _.mean }
       val std = t.zipVmap(Axis[Feature])(mean) { (x, m) => (x - m).pow(Tensor0(2f)).mean.sqrt + Tensor0(1e-6f) }
+      (mean, std)
+
+    def standardize(mean: Tensor1[Feature], std: Tensor1[Feature])(t: Tensor2[Sample, Feature]): Tensor2[Sample, Feature] =
       t.vmap(Axis[Sample]) { (x) => (x - mean) / std }
-    val trainingData = standardize(trainingDataUnnormalized)
+
+    val (trainMean, trainStd) = calcMeanAndStd(trainingDataUnnormalized)
+    val trainingData = standardize(trainMean, trainStd)(trainingDataUnnormalized)
+    val valData = standardize(trainMean, trainStd)(valDataUnnormalized)
 
     val (initKey, restKey) = trainKey.split2()
     val (lossKey, sampleKey) = restKey.split2()
 
-    def loss(p: Params): Tensor0 =
-      val losses = trainingData.zipVmap(Axis[Sample])(labels) { (sample, label) =>
+    def loss(data: Tensor2[Sample, Feature])(p: Params): Tensor0 =
+      val losses = data.zipVmap(Axis[Sample])(trainLabels) { (sample, label) =>
         val (logits, probs) = forward(p, sample)
         (logits.relu - logits * label + ((logits.abs * Tensor0(-1f)).exp + Tensor0(1f)).log)
       }
@@ -90,21 +98,22 @@ object LogisticRegression:
 
     val initialParams = initParams(initKey)
 
-    val gradFn = Autodiff.grad(loss)
-    val finalParams = GradientDescent(learningRate)
-      .optimize(gradFn, initialParams)
-      .zipWithIndex
-      .map((params, i) =>
+    val trainLoss = loss(trainingData)
+    val valLoss = loss(valData)
+    val gradFn = Autodiff.grad(trainLoss)
+    val gd = GradientDescent(learningRate)
+    val finalParams = (1 to 2500)
+      .foldLeft(initialParams) { (params, i) =>
         if i % 10 == 0 then
-          println("loss: " + loss(params))
-          val outputs = trainingData.vmap(Axis[Sample]) { x => forward(params, x)._2 }
-          println("acc: " + (Tensor0(1f) - (outputs - labels).abs.mean))
+          val trainOutputs = trainingData.vmap(Axis[Sample]) { x => forward(params, x)._2 }
+          val valOutputs = valData.vmap(Axis[Sample]) { x => forward(params, x)._2 }
+          println(List(
+            "trainAcc: " + (Tensor0(1f) - (trainOutputs - trainLabels).abs.mean),
+            "valAcc: " + (Tensor0(1f) - (valOutputs - valLabels).abs.mean)
+          ).mkString(", "))
         end if
-        params
-      )
-      .take(2500)
-      .toSeq
-      .last
+        gd.step(gradFn, params)
+      }
 
     val predictions = trainingData.vmap(Axis[Sample]) { x => forward(finalParams, x)._2 }
     println(predictions)

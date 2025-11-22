@@ -8,6 +8,12 @@ object TupleHelpers:
 
   /** Converts a tuple of any type to a tuple of Ints
     */
+  type ToStringTuple[T <: Tuple] <: Tuple = T match
+    case EmptyTuple => EmptyTuple
+    case _ *: tail  => String *: ToStringTuple[tail]
+
+  /** Converts a tuple of any type to a tuple of Ints
+    */
   type ToIntTuple[T <: Tuple] <: Tuple = T match
     case EmptyTuple => EmptyTuple
     case _ *: tail  => Int *: ToIntTuple[tail]
@@ -80,6 +86,26 @@ object TupleHelpers:
       case 6 =>
         (seq(0), seq(1), seq(2), seq(3), seq(4), seq(5))
           .asInstanceOf[ToIntTuple[T]]
+
+  /** Helper method to create tuple from sequence (supports up to 6 elements)
+    */
+  def createTupleFromSeqString[T <: Tuple](seq: Seq[String]): ToStringTuple[T] =
+    require(
+      seq.length <= 6,
+      s"Tuple size ${seq.length} not supported, maximum is 6"
+    )
+
+    seq.length match
+      case 0 => EmptyTuple.asInstanceOf[ToStringTuple[T]]
+      case 1 => Tuple1(seq(0)).asInstanceOf[ToStringTuple[T]]
+      case 2 => (seq(0), seq(1)).asInstanceOf[ToStringTuple[T]]
+      case 3 => (seq(0), seq(1), seq(2)).asInstanceOf[ToStringTuple[T]]
+      case 4 => (seq(0), seq(1), seq(2), seq(3)).asInstanceOf[ToStringTuple[T]]
+      case 5 =>
+        (seq(0), seq(1), seq(2), seq(3), seq(4)).asInstanceOf[ToStringTuple[T]]
+      case 6 =>
+        (seq(0), seq(1), seq(2), seq(3), seq(4), seq(5))
+          .asInstanceOf[ToStringTuple[T]]
 
   /** Get the index of the first occurrence of an element A in a tuple B
     */

@@ -10,6 +10,7 @@ import shapeful.tensor.TupleHelpers.ToIntTuple
 import shapeful.random.Random
 import me.shadaj.scalapy.py.SeqConverters
 import shapeful.jax.Jax.PyDynamic
+import shapeful.tensor.TupleHelpers.ToStringTuple
 
 enum Device(val jaxDevice: PyDynamic):
   case CPU extends Device(Jax.devices("cpu").head.as[PyDynamic])
@@ -63,7 +64,7 @@ class Tensor[T <: Tuple](val shape: Shape[T], val jaxValue: Jax.PyDynamic, val d
     val resultTuple = TupleHelpers.createTupleFromSeq[ResultTuple](resultDims)
 
     // ✅ Create shape with correct type annotation
-    val resultShape = Shape[ResultTuple](resultTuple)
+    val resultShape = new Shape[ResultTuple](resultTuple, shape.labels.asInstanceOf[ToStringTuple[ResultTuple]])
 
     new Tensor(resultShape, vmap_val, dtype)
 
@@ -117,10 +118,32 @@ class Tensor[T <: Tuple](val shape: Shape[T], val jaxValue: Jax.PyDynamic, val d
     val resultTuple = TupleHelpers.createTupleFromSeq[ResultTuple](resultDims)
 
     // ✅ Create shape with correct type annotation
-    val resultShape = Shape[ResultTuple](resultTuple)
+    val resultShape = new Shape[ResultTuple](resultTuple, shape.labels.asInstanceOf[ToStringTuple[ResultTuple]])
 
     new Tensor(resultShape, vmap_val, dtype)
 
+  inline def split[VmapAxis <: Label](axis: Axis[VmapAxis], numSamples: Int): (Tensor[T], Tensor[T]) =
+    val vmapAxisIndex = TupleHelpers.indexOf[VmapAxis, T]
+    val totalSize = shape.dims(vmapAxisIndex)
+    require(
+      numSamples < totalSize,
+      s"numSamples $numSamples must be less than tensor size $totalSize along the split axis"
+    )
+    
+    val firstPart = Jax.lax.slice_in_dim(jaxValue, 0, numSamples, axis = vmapAxisIndex)
+    val secondPart = Jax.lax.slice_in_dim(jaxValue, numSamples, totalSize, axis = vmapAxisIndex)
+    
+    val firstShapeDims = Seq(numSamples) ++ shape.dims.tail
+    val secondShapeDims = Seq(totalSize - numSamples) ++ shape.dims.tail
+    val firstShapeTuple = TupleHelpers.createTupleFromSeq[T](firstShapeDims)
+    val secondShapeTuple = TupleHelpers.createTupleFromSeq[T](secondShapeDims)
+    val firstShape = new Shape[T](firstShapeTuple, shape.labels)
+    val secondShape = new  Shape[T](secondShapeTuple, shape.labels)
+    (
+      new Tensor[T](firstShape, firstPart, dtype),
+      new Tensor[T](secondShape, secondPart, dtype)
+    )
+  
   inline def unstack[VmapAxis <: Label](
       axis: Axis[VmapAxis]
   ): ArraySeq[Tensor[TupleHelpers.Remove[VmapAxis, T]]] =
@@ -264,7 +287,8 @@ class Tensor[T <: Tuple](val shape: Shape[T], val jaxValue: Jax.PyDynamic, val d
     // Build the new shape with preserved labels
     val newDims = permutation.map(i => shape.dims(i))
     val newShapeTuple = TupleHelpers.createTupleFromSeq[NewOrder](newDims)
-    val newShape = new Shape[NewOrder](newShapeTuple, newLabelNames.toArray)
+    val newLabelTuple = TupleHelpers.createTupleFromSeqString[NewOrder](newLabelNames)
+    val newShape = new Shape[NewOrder](newShapeTuple, newLabelTuple)
 
     new Tensor[NewOrder](newShape, transposedJax, dtype)
 
