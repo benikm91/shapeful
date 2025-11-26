@@ -33,15 +33,7 @@ object MLPClassifierMNist:
   case class MLPParams(
       layer1: Linear.Params[Feature, Hidden1],
       output: Linear.Params[Hidden1, Output]
-  ) derives TensorTree,
-        ToPyTree
-
-  def initParams(key: Random.Key): MLPParams =
-    val keys = key.split(2)
-    MLPParams(
-      layer1 = Linear.he[Feature, Hidden1](keys(0)),
-      output = Linear.xavier[Hidden1, Output](keys(1))
-    )
+  ) derives TensorTree, ToPyTree, Init
 
   def forward(params: MLPParams, x: Tensor1[Feature]): (Tensor1[Output], Tensor1[Output]) =
     val layer1 = Linear[Feature, Hidden1]()
@@ -82,15 +74,13 @@ object MLPClassifierMNist:
       }
       shapeful.mean(losses)
 
-    val initialParams = initParams(dataKey)
-    var currentParams = initialParams
+    var currentParams = Init.init[MLPParams](dataKey)
 
     type BatchOutput = (Sample, Output)
 
-    // JIT-compile accuracy calculation
     def accuracyFn(predictions: Tensor2[Sample, Output], targets: Tensor2[Sample, Output]): Tensor0 =
-      val predClasses = predictions.vmap(Axis[Sample]) { pred => shapeful.argmax(pred) }
-      val targetClasses = targets.vmap(Axis[Sample]) { target => shapeful.argmax(target) }
+      val predClasses = predictions.vmap(Axis[Sample]) { _.argmax }
+      val targetClasses = targets.vmap(Axis[Sample]) { _.argmax }
       val matches =
         predClasses.zipVmap(Axis[Sample])(targetClasses) { (pred, target) => Tensor0(1.0f) - (pred - target).abs.sign }
       shapeful.sum(matches)
@@ -109,8 +99,8 @@ object MLPClassifierMNist:
 
       trainingData.batches[Sample](batchSize).zipWithIndex.foreach { case ((batchImages, batchLabels), batchIndex) =>
         val actualBatchSize = batchImages.shape.dim[Sample]
-        batchImages.toDevice(Device.GPU)
-        batchLabels.toDevice(Device.GPU)
+        batchImages.toDevice(Device.CPU)
+        batchLabels.toDevice(Device.CPU)
         if actualBatchSize == batchSize then
           if batchIndex % 30 == 0 then
 

@@ -6,15 +6,14 @@ import scala.compiletime.{erasedValue, summonFrom}
 import shapeful.jax.Jax
 import shapeful.jax.JaxDType
 import shapeful.Label
-import shapeful.tensor.TupleHelpers.ToIntTuple
+import shapeful.tensor.TupleHelpers.{IntTuple, StringTuple}
 import shapeful.random.Random
 import me.shadaj.scalapy.py.SeqConverters
 import shapeful.jax.Jax.PyDynamic
-import shapeful.tensor.TupleHelpers.ToStringTuple
 
 enum Device(val jaxDevice: PyDynamic):
   case CPU extends Device(Jax.devices("cpu").head.as[PyDynamic])
-  case GPU extends Device(Jax.devices("gpu").head.as[PyDynamic])
+  // case GPU extends Device(Jax.devices("gpu").head.as[PyDynamic])
 
 class Tensor[T <: Tuple](val shape: Shape[T], val jaxValue: Jax.PyDynamic, val dtype: DType = DType.Float32):
 
@@ -64,7 +63,7 @@ class Tensor[T <: Tuple](val shape: Shape[T], val jaxValue: Jax.PyDynamic, val d
     val resultTuple = TupleHelpers.createTupleFromSeq[ResultTuple](resultDims)
 
     // ✅ Create shape with correct type annotation
-    val resultShape = new Shape[ResultTuple](resultTuple, shape.labels.asInstanceOf[ToStringTuple[ResultTuple]])
+    val resultShape = new Shape[ResultTuple](resultTuple, shape.labels.asInstanceOf[StringTuple[ResultTuple]])
 
     new Tensor(resultShape, vmap_val, dtype)
 
@@ -118,7 +117,7 @@ class Tensor[T <: Tuple](val shape: Shape[T], val jaxValue: Jax.PyDynamic, val d
     val resultTuple = TupleHelpers.createTupleFromSeq[ResultTuple](resultDims)
 
     // ✅ Create shape with correct type annotation
-    val resultShape = new Shape[ResultTuple](resultTuple, shape.labels.asInstanceOf[ToStringTuple[ResultTuple]])
+    val resultShape = new Shape[ResultTuple](resultTuple, shape.labels.asInstanceOf[StringTuple[ResultTuple]])
 
     new Tensor(resultShape, vmap_val, dtype)
 
@@ -294,7 +293,7 @@ class Tensor[T <: Tuple](val shape: Shape[T], val jaxValue: Jax.PyDynamic, val d
 
   /** Access a specific index of the tensor.
     */
-  def at(idx: ToIntTuple[T]): TensorIndexer[T] =
+  def at(idx: IntTuple[T]): TensorIndexer[T] =
     new TensorIndexer(this, idx)
 
   /** Change the dtype of the tensor.
@@ -762,7 +761,7 @@ object Tensor3:
 
 class TensorIndexer[T <: Tuple](
     private val tensor: Tensor[T],
-    private val index: ToIntTuple[T]
+    private val index: IntTuple[T]
 ):
 
   val idxAsSeq: Seq[Int] = index.productIterator.toSeq.asInstanceOf[Seq[Int]]

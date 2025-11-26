@@ -366,8 +366,8 @@ object TensorOps:
         other: Tensor[OtherShape]
     )(using
         // Ensure ContractAxis exists in both tensors
-        ev1: TupleHelpers.Contains[ContractAxis, T] =:= true,
-        ev2: TupleHelpers.Contains[ContractAxis, OtherShape] =:= true,
+        ev1: Tuple.Contains[T, ContractAxis] =:= true,
+        ev2: Tuple.Contains[OtherShape, ContractAxis] =:= true,
         // Compute result shape at compile time
         ev3: TupleHelpers.ContractResult[T, OtherShape, ContractAxis] =:= ResultShape
     ): Tensor[ResultShape] =

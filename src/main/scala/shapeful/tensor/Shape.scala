@@ -1,16 +1,15 @@
 package shapeful.tensor
 
-import TupleHelpers.{ToIntTuple, createTupleFromSeq}
+import TupleHelpers.{IntTuple, StringTuple, createTupleFromSeq}
 import shapeful.Label
 import scala.collection.View.Empty
 import scala.annotation.publicInBinary
-import shapeful.tensor.TupleHelpers.ToStringTuple
 
 /** Represents the (typed) Shape of a tensor with runtime labels
   */
 final class Shape[T <: Tuple] @publicInBinary private[tensor] (
-    private val dimensions: ToIntTuple[T],
-    val labels: ToStringTuple[T],
+    private val dimensions: IntTuple[T],
+    val labels: StringTuple[T],
 ):
 
   def dims: Seq[Int] = dimensions.productIterator.toSeq.asInstanceOf[Seq[Int]]
@@ -54,11 +53,11 @@ final class Shape[T <: Tuple] @publicInBinary private[tensor] (
       ev: Tuple.Size[T] =:= Tuple.Size[NewT]
   ): Shape[NewT] =
     new Shape[NewT](
-      dimensions.asInstanceOf[ToIntTuple[NewT]],
-      labels.asInstanceOf[ToStringTuple[NewT]],
+      dimensions.asInstanceOf[IntTuple[NewT]],
+      labels.asInstanceOf[StringTuple[NewT]],
     )
 
-  def asTuple: ToIntTuple[T] = dimensions
+  def asTuple: IntTuple[T] = dimensions
 
   def *:[U <: Tuple](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
     val combinedDims = other.dims ++ this.dims
@@ -85,11 +84,11 @@ object Shape:
 
   def empty: Shape[EmptyTuple] = new Shape(EmptyTuple, EmptyTuple)
 
-  def fromTuple[T <: Tuple](t: ToIntTuple[T], u: ToStringTuple[T]): Shape[T] =
+  def fromTuple[T <: Tuple](t: IntTuple[T], u: StringTuple[T]): Shape[T] =
     // Fallback without labels - use indices
     new Shape(t, u)
 
-  def apply[T <: Tuple](t: ToIntTuple[T]): Shape[T] = 
+  def apply[T <: Tuple](t: IntTuple[T]): Shape[T] = 
     val u = TupleHelpers.createTupleFromSeqString[T](
       t.productIterator.zipWithIndex.map { case (_, idx) => s"dim$idx" }.toSeq
     )

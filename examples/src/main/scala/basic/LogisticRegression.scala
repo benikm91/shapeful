@@ -1,3 +1,9 @@
+/*
+
+TODO
+* Initialization with "using"?
+
+*/
 package examples.basic
 
 import shapeful.*
@@ -24,13 +30,12 @@ object LogisticRegression:
         ToPyTree
 
   def initParams(key: Random.Key)(using featureDim: Dim[Feature]): Params =
-    val keys = key.split(2)
     Params(
       weights = Tensor.zeros(Shape(Axis[Feature] -> featureDim.dim)),
       bias = Tensor.zeros(Shape0)
     )
 
-  def forward(params: Params, x: Tensor1[Feature]): (Tensor0, Tensor0) =
+  def linearModel(params: Params)(x: Tensor1[Feature]): (Tensor0, Tensor0) =
     val logits = x.dot(params.weights) + params.bias
     val probs = logits.sigmoid
     (logits, probs)
@@ -90,23 +95,23 @@ object LogisticRegression:
     val (lossKey, sampleKey) = restKey.split2()
 
     def loss(data: Tensor2[Sample, Feature])(p: Params): Tensor0 =
+      val model = linearModel(p)
       val losses = data.zipVmap(Axis[Sample])(trainLabels) { (sample, label) =>
-        val (logits, probs) = forward(p, sample)
+        val (logits, probs) = model(sample)
         (logits.relu - logits * label + ((logits.abs * Tensor0(-1f)).exp + Tensor0(1f)).log)
       }
       losses.mean
-
-    val initialParams = initParams(initKey)
 
     val trainLoss = loss(trainingData)
     val valLoss = loss(valData)
     val gradFn = Autodiff.grad(trainLoss)
     val gd = GradientDescent(learningRate)
     val finalParams = (1 to 2500)
-      .foldLeft(initialParams) { (params, i) =>
+      .foldLeft(initParams(initKey)) { (params, i) =>
         if i % 10 == 0 then
-          val trainOutputs = trainingData.vmap(Axis[Sample]) { x => forward(params, x)._2 }
-          val valOutputs = valData.vmap(Axis[Sample]) { x => forward(params, x)._2 }
+          val model = linearModel(params)
+          val trainOutputs = trainingData.vmap(Axis[Sample]) { x => model(x)._2 }
+          val valOutputs = valData.vmap(Axis[Sample]) { x => model(x)._2 }
           println(List(
             "trainAcc: " + (Tensor0(1f) - (trainOutputs - trainLabels).abs.mean),
             "valAcc: " + (Tensor0(1f) - (valOutputs - valLabels).abs.mean)
@@ -115,7 +120,8 @@ object LogisticRegression:
         gd.step(gradFn, params)
       }
 
-    val predictions = trainingData.vmap(Axis[Sample]) { x => forward(finalParams, x)._2 }
+    val finalModel = linearModel(finalParams)
+    val predictions = trainingData.vmap(Axis[Sample]) { x => finalModel(x)._2 }
     println(predictions)
     val predictionClasses = predictions.vmap(Axis[Sample]) { p => p.argmax }
 

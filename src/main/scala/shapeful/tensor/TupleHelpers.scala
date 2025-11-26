@@ -6,20 +6,10 @@ import scala.compiletime.{error, erasedValue}
   */
 object TupleHelpers:
 
-  /** Converts a tuple of any type to a tuple of Ints
-    */
-  type ToStringTuple[T <: Tuple] <: Tuple = T match
-    case EmptyTuple => EmptyTuple
-    case _ *: tail  => String *: ToStringTuple[tail]
+  type MapTo[T <: Tuple, A] = Tuple.Map[T, [ _ ] =>> A]
+  type StringTuple[T <: Tuple] = MapTo[T, String]
+  type IntTuple[T <: Tuple] = MapTo[T, Int]
 
-  /** Converts a tuple of any type to a tuple of Ints
-    */
-  type ToIntTuple[T <: Tuple] <: Tuple = T match
-    case EmptyTuple => EmptyTuple
-    case _ *: tail  => Int *: ToIntTuple[tail]
-
-  /** Remove the first occurrence of an element A from a tuple B
-    */
   type Remove[A, B <: Tuple] <: Tuple = B match
     case EmptyTuple      => EmptyTuple
     case A *: EmptyTuple =>
@@ -34,78 +24,51 @@ object TupleHelpers:
     case EmptyTuple   => From
     case head *: tail => RemoveAll[tail, Remove[head, From]]
 
-  /** Check if a type X is contained in tuple T
-    */
-  type Contains[X, T <: Tuple] <: Boolean = T match
-    case EmptyTuple => false
-    case X *: tail  => true
-    case _ *: tail  => Contains[X, tail]
-
   /** Compute the result shape after contracting over a single axis Result is concatenation of T1 and T2 with
     * ContractAxis removed from both
     */
   type ContractResult[T1 <: Tuple, T2 <: Tuple, ContractAxis] =
     Tuple.Concat[Remove[ContractAxis, T1], Remove[ContractAxis, T2]]
 
-  // Successor type for counting (compact version)
-  type S[N <: Int] <: Int = N match
-    case 0  => 1
-    case 1  => 2
-    case 2  => 3
-    case 3  => 4
-    case 4  => 5
-    case 5  => 6
-    case 6  => 7
-    case 7  => 8
-    case 8  => 9
-    case 9  => 10
-    case 10 => 11
-    case 11 => 12
-    case 12 => 13
-    case 13 => 14
-    case 14 => 15
-
-  // ========== Runtime operations ==========
-
   /** Helper method to create tuple from sequence (supports up to 6 elements)
     */
-  def createTupleFromSeq[T <: Tuple](seq: Seq[Int]): ToIntTuple[T] =
+  def createTupleFromSeq[T <: Tuple](seq: Seq[Int]): IntTuple[T] =
     require(
       seq.length <= 6,
       s"Tuple size ${seq.length} not supported, maximum is 6"
     )
 
     seq.length match
-      case 0 => EmptyTuple.asInstanceOf[ToIntTuple[T]]
-      case 1 => Tuple1(seq(0)).asInstanceOf[ToIntTuple[T]]
-      case 2 => (seq(0), seq(1)).asInstanceOf[ToIntTuple[T]]
-      case 3 => (seq(0), seq(1), seq(2)).asInstanceOf[ToIntTuple[T]]
-      case 4 => (seq(0), seq(1), seq(2), seq(3)).asInstanceOf[ToIntTuple[T]]
+      case 0 => EmptyTuple.asInstanceOf[IntTuple[T]]
+      case 1 => Tuple1(seq(0)).asInstanceOf[IntTuple[T]]
+      case 2 => (seq(0), seq(1)).asInstanceOf[IntTuple[T]]
+      case 3 => (seq(0), seq(1), seq(2)).asInstanceOf[IntTuple[T]]
+      case 4 => (seq(0), seq(1), seq(2), seq(3)).asInstanceOf[IntTuple[T]]
       case 5 =>
-        (seq(0), seq(1), seq(2), seq(3), seq(4)).asInstanceOf[ToIntTuple[T]]
+        (seq(0), seq(1), seq(2), seq(3), seq(4)).asInstanceOf[IntTuple[T]]
       case 6 =>
         (seq(0), seq(1), seq(2), seq(3), seq(4), seq(5))
-          .asInstanceOf[ToIntTuple[T]]
+          .asInstanceOf[IntTuple[T]]
 
   /** Helper method to create tuple from sequence (supports up to 6 elements)
     */
-  def createTupleFromSeqString[T <: Tuple](seq: Seq[String]): ToStringTuple[T] =
+  def createTupleFromSeqString[T <: Tuple](seq: Seq[String]): MapTo[T, String] =
     require(
       seq.length <= 6,
       s"Tuple size ${seq.length} not supported, maximum is 6"
     )
 
     seq.length match
-      case 0 => EmptyTuple.asInstanceOf[ToStringTuple[T]]
-      case 1 => Tuple1(seq(0)).asInstanceOf[ToStringTuple[T]]
-      case 2 => (seq(0), seq(1)).asInstanceOf[ToStringTuple[T]]
-      case 3 => (seq(0), seq(1), seq(2)).asInstanceOf[ToStringTuple[T]]
-      case 4 => (seq(0), seq(1), seq(2), seq(3)).asInstanceOf[ToStringTuple[T]]
+      case 0 => EmptyTuple.asInstanceOf[StringTuple[T]]
+      case 1 => Tuple1(seq(0)).asInstanceOf[StringTuple[T]]
+      case 2 => (seq(0), seq(1)).asInstanceOf[StringTuple[T]]
+      case 3 => (seq(0), seq(1), seq(2)).asInstanceOf[StringTuple[T]]
+      case 4 => (seq(0), seq(1), seq(2), seq(3)).asInstanceOf[StringTuple[T]]
       case 5 =>
-        (seq(0), seq(1), seq(2), seq(3), seq(4)).asInstanceOf[ToStringTuple[T]]
+        (seq(0), seq(1), seq(2), seq(3), seq(4)).asInstanceOf[StringTuple[T]]
       case 6 =>
         (seq(0), seq(1), seq(2), seq(3), seq(4), seq(5))
-          .asInstanceOf[ToStringTuple[T]]
+          .asInstanceOf[StringTuple[T]]
 
   /** Get the index of the first occurrence of an element A in a tuple B
     */

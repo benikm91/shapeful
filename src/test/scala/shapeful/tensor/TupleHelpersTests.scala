@@ -5,21 +5,21 @@ import shapeful.tensor.TupleHelpers.*
 
 class TupleHelpersTests extends FunSuite:
 
-  test("ToIntTuple converts empty tuple") {
-    // Test that ToIntTuple works with EmptyTuple
-    val empty: ToIntTuple[EmptyTuple] = EmptyTuple
+  test("IntTuple converts empty tuple") {
+    // Test that IntTuple works with EmptyTuple
+    val empty: IntTuple[EmptyTuple] = EmptyTuple
     assertEquals(empty, EmptyTuple)
   }
 
-  test("ToIntTuple converts single element tuple") {
-    // Test ToIntTuple with single element
-    val single: ToIntTuple[String *: EmptyTuple] = Tuple1(42)
+  test("IntTuple converts single element tuple") {
+    // Test IntTuple with single element
+    val single: IntTuple[String *: EmptyTuple] = Tuple1(42)
     assertEquals(single, Tuple1(42))
   }
 
-  test("ToIntTuple converts multiple element tuple") {
-    // Test ToIntTuple with multiple elements
-    val triple: ToIntTuple[String *: Boolean *: Double *: EmptyTuple] =
+  test("IntTuple converts multiple element tuple") {
+    // Test IntTuple with multiple elements
+    val triple: IntTuple[String *: Boolean *: Double *: EmptyTuple] =
       (1, 2, 3)
     assertEquals(triple, (1, 2, 3))
   }
