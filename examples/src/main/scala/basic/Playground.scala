@@ -44,4 +44,6 @@ def main(args: Array[String]): Unit =
     }
     println(Xnorm)
     println(Xnorm.shape)
+    println(Xnorm.device)
+    println(Xnorm.dtype)
   }

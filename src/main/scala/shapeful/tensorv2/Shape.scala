@@ -3,27 +3,26 @@ package shapeful.tensorv2
 import shapeful.Label
 import scala.collection.View.Empty
 import scala.annotation.publicInBinary
+import TupleHelpers.NamesOf
 
 /** Represents the (typed) Shape of a tensor with runtime labels
   */
-final case class Shape[T <: Tuple] @publicInBinary private[tensorv2] (
-    val dimensions: List[Int],
-    val labels: List[String],
+final case class Shape[T <: Tuple : NamesOf] @publicInBinary private[tensorv2] (
+  val dimensions: List[Int],
 ):
+
+  lazy val labels: List[String] = summon[NamesOf[T]].value
 
   require(dimensions.size == labels.size, "Dimensions and labels must have the same size")
   require(dimensions.forall(_ > 0), "All dimensions must be positive")
 
   def rank: Int = dimensions.size
   def size: Int = dimensions.foldLeft(1)((acc, d) => acc * d.asInstanceOf[Int])
-  inline def dim[D <: Label](axis: Axis[D]): Int = this.dim[D]
-  inline def dim[D <: Label]: Int = dimensions(TupleHelpers.indexOf[D, T])
+  def dim[D <: Label](axis: Axis[D])(using axisIndex: AxisIndex[D, T]): Int = this.dimensions(axisIndex.value)
 
-  def *:[U <: Tuple](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
-    new Shape(
-      other.dimensions ++ dimensions,
-      other.labels ++ labels
-    )
+  def *:[U <: Tuple : NamesOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
+    import NamesOf.ForConcat.given
+    new Shape(other.dimensions ++ dimensions)
 
   override def toString: String =
     labels.zip(dimensions)
@@ -36,51 +35,33 @@ final case class Shape[T <: Tuple] @publicInBinary private[tensorv2] (
 
   override def hashCode(): Int = dimensions.hashCode() ^ labels.hashCode()
 
-  def ++[U <: Tuple](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
-    new Shape(
-      other.dimensions ++ dimensions,
-      other.labels ++ labels
-    )
+  def ++[U <: Tuple : NamesOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
+    import NamesOf.ForConcat.given
+    new Shape(other.dimensions ++ dimensions)
 
-  def +:[NewAxis <: Label](dim: (Axis[NewAxis], Int)): Shape[NewAxis *: T] =
-    new Shape(
-      dim._2 :: dimensions,
-      dim._1.name :: labels
-    )
+  def +:[NewAxis <: Label : ValueOf](dim: (Axis[NewAxis], Int)): Shape[NewAxis *: T] = 
+    new Shape(dim._2 :: dimensions)
 
 object Shape:
 
-  def empty: Shape[EmptyTuple] = new Shape(Nil, Nil)
+  def empty: Shape[EmptyTuple] = new Shape(Nil)
 
-  private inline def getLabel[L <: Label](idx: Int): String =
-    scala.compiletime.summonFrom {
-      case v: ValueOf[L] => v.value.toString
-      case _             => s"dim$idx"
-    }
-  
-  inline def apply[L <: Label](dim: (Axis[L], Int)): Shape[L *: EmptyTuple] =
-    val label = getLabel[L](0)
-    new Shape(List(dim._2), List(label))
+  def apply[L <: Label : ValueOf](dim: (Axis[L], Int)): Shape[L *: EmptyTuple] =
+    new Shape(List(dim._2))
 
-  inline def apply[L1 <: Label, L2 <: Label](
+  def apply[L1 <: Label : ValueOf, L2 <: Label : ValueOf](
       dim1: (Axis[L1], Int),
       dim2: (Axis[L2], Int)
   ): Shape[L1 *: L2 *: EmptyTuple] =
-    val label1 = getLabel[L1](0)
-    val label2 = getLabel[L2](1)
-    new Shape(List(dim1._2, dim2._2), List(label1, label2))
+    new Shape(List(dim1._2, dim2._2))
 
-  inline def apply[L1 <: Label, L2 <: Label, L3 <: Label](
+  def apply[L1 <: Label : ValueOf, L2 <: Label : ValueOf, L3 <: Label : ValueOf](
       dim1: (Axis[L1], Int),
       dim2: (Axis[L2], Int),
       dim3: (Axis[L3], Int)
   ): Shape[L1 *: L2 *: L3 *: EmptyTuple] =
-    val label1 = getLabel[L1](0)
-    val label2 = getLabel[L2](1)
-    val label3 = getLabel[L3](2)
     new Shape(
       List(dim1._2, dim2._2, dim3._2),
-      List(label1, label2, label3)
     )
 
   type Shape0 = Shape[EmptyTuple]

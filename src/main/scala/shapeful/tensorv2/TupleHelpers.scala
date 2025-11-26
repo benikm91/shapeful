@@ -47,21 +47,17 @@ object TupleHelpers:
         tailNames: NamesOf[tail]
     ): NamesOf[head *: tail] =
       new NamesOfImpl[head *: tail](headName.value.toString :: tailNames.value)
+    
+    object ForConcat:
+      inline given concatNames[A <: Tuple, B <: Tuple](using
+        namesA: NamesOf[A],
+        namesB: NamesOf[B]
+      ): NamesOf[Tuple.Concat[A, B]] =
+        new NamesOfImpl[Tuple.Concat[A, B]](namesA.value ++ namesB.value)
 
-  inline def namesOf[T <: Tuple]: List[String] =
-    inline erasedValue[T] match
-      case _: (head *: tail) => constValue[head].toString :: namesOf[tail]
-      case _: EmptyTuple     => Nil
-
-  inline def indexOf[A, B <: Tuple]: Int =
-    inline erasedValue[B] match
-      case _: (A *: tail)    => 0
-      case _: (head *: tail) => 1 + indexOf[A, tail]
-      case _: EmptyTuple     =>
-        error("Element not found in tuple")
-
-  inline def indicesOf[ToFind <: Tuple, InTuple <: Tuple]: Tuple =
-    inline erasedValue[ToFind] match
-      case _: EmptyTuple     => EmptyTuple
-      case _: (head *: tail) =>
-        indexOf[head, InTuple] *: indicesOf[tail, InTuple]
+    object ForRemove:
+      given derivedRemoveNames[A, T <: Tuple](using 
+        base: NamesOf[T], 
+        idx: AxisIndex[A, T]
+      ): NamesOf[TupleHelpers.Remove[A, T]] = 
+        new NamesOfImpl(base.value.patch(idx.value, Nil, 1))
