@@ -7,7 +7,7 @@ import shapeful.jaxv2.Jax
 import shapeful.jaxv2.JaxDType
 import shapeful.jaxv2.Jax.PyDynamic
 import shapeful.Label
-import shapeful.tensorv2.TupleHelpers.NamesOf
+import shapeful.tensorv2.TupleHelpers.ShapeTreeOf
 import shapeful.random.Random
 import me.shadaj.scalapy.py.SeqConverters
 
@@ -22,106 +22,30 @@ object Device:
     Device.CPU
   )
 
-case class Tensor[T <: Tuple : NamesOf] private[tensorv2] (
+case class Tensor[T <: Tuple : ShapeTreeOf] private[tensorv2] (
   val jaxValue: Jax.PyDynamic,
 ):
 
-  lazy val axes: List[String] = summon[NamesOf[T]].value
+  lazy val axes: List[String] = shape.labels
   lazy val dtype: DType = JaxDType.fromJaxDtype(jaxValue.dtype)
-  lazy val shape: Shape[T] = new Shape[T](jaxValue.shape.as[Seq[Int]].toList)
+  lazy val shape: Shape[T] = Shape.fromList[T](jaxValue.shape.as[Seq[Int]].toList)
 
   lazy val device: Device = Device.values.find(
     d => Jax.device_get(jaxValue).equals(d.jaxDevice)
   ).getOrElse(Device.Other(Jax.device_get(jaxValue).name.as[String]))
 
   def asType(newDType: DType): Tensor[T] = 
-    copy(
-      jaxValue = Jax.jnp.astype(jaxValue, JaxDType.jaxDtype(newDType)), 
-    )
+    Tensor(jaxValue = Jax.jnp.astype(jaxValue, JaxDType.jaxDtype(newDType)))
 
   def toDevice(newDevice: Device): Tensor[T] = 
-    copy(
-      jaxValue = Jax.device_put(jaxValue, newDevice.jaxDevice), 
-    )
+    Tensor(jaxValue = Jax.device_put(jaxValue, newDevice.jaxDevice))
 
-  def reshape[NewT <: Tuple : NamesOf](newShape: Shape[NewT]): Tensor[NewT] =
+  def reshape[NewT <: Tuple : ShapeTreeOf](newShape: Shape[NewT]): Tensor[NewT] =
     require(shape.size == newShape.size, "New shape must have the same number of elements")
     Tensor(Jax.jnp.reshape(jaxValue, newShape.dimensions.toPythonProxy))
 
   def relabel[From <: Label, To <: Label](from: Axis[From], to: Axis[To]): Tensor[TupleHelpers.Replace[T, From, To]] =
     this.asInstanceOf[Tensor[TupleHelpers.Replace[T, From, To]]]
-
-  inline def rearrange[A1 <: Label : ValueOf](a1: Axis[A1])(using
-      ev: Tuple.Size[Tuple1[A1]] =:= Tuple.Size[T]
-  ): Tensor[Tuple1[A1]] =
-    rearrangeImpl[Tuple1[A1]](Seq(getLabelForRearrange[A1](0)))
-
-  inline def rearrange[A1 <: Label : ValueOf, A2 <: Label : ValueOf](
-      a1: Axis[A1],
-      a2: Axis[A2]
-  )(using ev: Tuple.Size[(A1, A2)] =:= Tuple.Size[T]): Tensor[(A1, A2)] =
-    rearrangeImpl[(A1, A2)](Seq(getLabelForRearrange[A1](0), getLabelForRearrange[A2](1)))
-
-  inline def rearrange[A1 <: Label : ValueOf, A2 <: Label : ValueOf, A3 <: Label : ValueOf](
-      a1: Axis[A1],
-      a2: Axis[A2],
-      a3: Axis[A3]
-  )(using ev: Tuple.Size[(A1, A2, A3)] =:= Tuple.Size[T]): Tensor[(A1, A2, A3)] =
-    rearrangeImpl[(A1, A2, A3)](
-      Seq(getLabelForRearrange[A1](0), getLabelForRearrange[A2](1), getLabelForRearrange[A3](2))
-    )
-
-  inline def rearrange[A1 <: Label : ValueOf, A2 <: Label : ValueOf, A3 <: Label : ValueOf, A4 <: Label : ValueOf](
-      a1: Axis[A1],
-      a2: Axis[A2],
-      a3: Axis[A3],
-      a4: Axis[A4]
-  )(using ev: Tuple.Size[(A1, A2, A3, A4)] =:= Tuple.Size[T]): Tensor[(A1, A2, A3, A4)] =
-    rearrangeImpl[(A1, A2, A3, A4)](
-      Seq(
-        getLabelForRearrange[A1](0),
-        getLabelForRearrange[A2](1),
-        getLabelForRearrange[A3](2),
-        getLabelForRearrange[A4](3)
-      )
-    )
-
-  inline def rearrange[A1 <: Label : ValueOf, A2 <: Label : ValueOf, A3 <: Label : ValueOf, A4 <: Label : ValueOf, A5 <: Label : ValueOf](
-      a1: Axis[A1],
-      a2: Axis[A2],
-      a3: Axis[A3],
-      a4: Axis[A4],
-      a5: Axis[A5]
-  )(using ev: Tuple.Size[(A1, A2, A3, A4, A5)] =:= Tuple.Size[T]): Tensor[(A1, A2, A3, A4, A5)] =
-    rearrangeImpl[(A1, A2, A3, A4, A5)](
-      Seq(
-        getLabelForRearrange[A1](0),
-        getLabelForRearrange[A2](1),
-        getLabelForRearrange[A3](2),
-        getLabelForRearrange[A4](3),
-        getLabelForRearrange[A5](4)
-      )
-    )
-
-  private inline def getLabelForRearrange[L <: Label](idx: Int): String =
-    scala.compiletime.summonFrom {
-      case v: ValueOf[L] => v.value.toString
-      case _             =>
-        assert (idx >= 0 && idx < shape.labels.length, s"Index $idx out of bounds for shape labels")
-        shape.labels(idx)
-    }
-
-  private def rearrangeImpl[NewOrder <: Tuple : NamesOf](newLabelNames: Seq[String]): Tensor[NewOrder] =
-    val permutation = newLabelNames.map { labelName =>
-      val idx = shape.labels.indexOf(labelName)
-      require(idx >= 0, s"Axis ${labelName} not found in tensor shape")
-      idx
-    }.toList
-
-    val transposedJax = Jax.jnp.transpose(jaxValue, permutation.toArray.toPythonProxy)
-    val transposedAxes = permutation.map(i => shape.labels(i))
-
-    Tensor(jaxValue = transposedJax)
 
   def at(idx: Tensor.IndicesOf[T]): TensorIndexer[T] =
     new TensorIndexer(this, idx)
@@ -137,9 +61,7 @@ case class Tensor[T <: Tuple : NamesOf] private[tensorv2] (
     using ev: Tuple.Size[T] =:= Tuple.Size[U]
   ): Tensor[T] =
     require(this.shape.dimensions == other.shape.dimensions, s"Shape mismatch: ${this.shape.dimensions} vs ${other.shape.dimensions}")
-    copy(
-      jaxValue = Jax.jnp.equal(this.jaxValue, other.jaxValue),
-    )
+    Tensor(jaxValue = Jax.jnp.equal(this.jaxValue, other.jaxValue))
 
   def approxEquals[U <: Tuple](other: Tensor[U], tolerance: Float = 1e-6f)(
     using ev: Tuple.Size[T] =:= Tuple.Size[U]
@@ -172,7 +94,7 @@ object Tensor:
   type Tensor3[L1 <: Label, L2 <: Label, L3 <: Label] = Tensor[(L1, L2, L3)]
   type Tensor4[L1 <: Label, L2 <: Label, L3 <: Label, L4 <: Label] = Tensor[(L1, L2, L3, L4)]
 
-  def apply[T <: Tuple : NamesOf](shape: Shape[T], values: ArraySeq[Float], dtype: DType = DType.Float32, device: Device = Device.default): Tensor[T] =
+  def apply[T <: Tuple : ShapeTreeOf](shape: Shape[T], values: ArraySeq[Float], dtype: DType = DType.Float32, device: Device = Device.default): Tensor[T] =
     require(values.length == shape.size, s"Values length ${values.length} does not match shape size ${shape.size}")
     val jaxValues = Jax.jnp
       .array(
@@ -183,48 +105,15 @@ object Tensor:
       .reshape(shape.dimensions.toPythonProxy)
     Tensor(jaxValues)
 
-  def zeros[T <: Tuple : NamesOf](shape: Shape[T], dtype: DType): Tensor[T] =
+  def zeros[T <: Tuple : ShapeTreeOf](shape: Shape[T], dtype: DType = DType.Float32): Tensor[T] =
     Tensor(Jax.jnp.zeros(shape.dimensions.toPythonProxy, dtype = dtype.jaxType))
 
-  def zeros[L1 <: Label : ValueOf](axis1: (Axis[L1], Int)): Tensor1[L1] =
-    zeros(Shape(axis1), DType.Float32)
-
-  inline def zeros[L1 <: Label : ValueOf, L2 <: Label : ValueOf](
-      axis1: (Axis[L1], Int),
-      axis2: (Axis[L2], Int)
-  ): Tensor2[L1, L2] =
-    zeros(Shape(axis1, axis2), DType.Float32)
-
-  inline def zeros[L1 <: Label : ValueOf, L2 <: Label : ValueOf, L3 <: Label : ValueOf](
-      axis1: (Axis[L1], Int),
-      axis2: (Axis[L2], Int),
-      axis3: (Axis[L3], Int)
-  ): Tensor3[L1, L2, L3] =
-    zeros(Shape(axis1, axis2, axis3), DType.Float32)
-
-  def ones[T <: Tuple : NamesOf](shape: Shape[T], dtype: DType = DType.Float32): Tensor[T] =
+  def ones[T <: Tuple : ShapeTreeOf](shape: Shape[T], dtype: DType = DType.Float32): Tensor[T] =
     Tensor(Jax.jnp.ones(shape.dimensions.toPythonProxy, dtype = dtype.jaxType))
-
-  // Convenient Axis-based overloads for ones
-  inline def ones[L1 <: Label : ValueOf](axis1: (Axis[L1], Int)): Tensor1[L1] =
-    ones(Shape(axis1), DType.Float32)
-
-  inline def ones[L1 <: Label : ValueOf, L2 <: Label : ValueOf](
-      axis1: (Axis[L1], Int),
-      axis2: (Axis[L2], Int)
-  ): Tensor2[L1, L2] =
-    ones(Shape(axis1, axis2), DType.Float32)
-
-  inline def ones[L1 <: Label : ValueOf, L2 <: Label : ValueOf, L3 <: Label : ValueOf](
-      axis1: (Axis[L1], Int),
-      axis2: (Axis[L2], Int),
-      axis3: (Axis[L3], Int)
-  ): Tensor3[L1, L2, L3] =
-    ones(Shape(axis1, axis2, axis3), DType.Float32)
 
   /** stack a sequence of tensors along a new axis
     */
-  def stack[T <: Tuple : NamesOf, NewAxis <: Label : ValueOf](
+  def stack[T <: Tuple : ShapeTreeOf, NewAxis <: Label : ValueOf](
       axis: Axis[NewAxis]
   )(
       tensors: Seq[Tensor[T]]
@@ -238,7 +127,7 @@ object Tensor:
 
   /** Concat tensors along an existing axis
     */
-  inline def concat[T <: Tuple : NamesOf, ConcatAxis <: Label](
+  inline def concat[T <: Tuple : ShapeTreeOf, ConcatAxis <: Label](
       axis: Axis[ConcatAxis]
   )(
       tensors: Seq[Tensor[T]]
@@ -340,7 +229,7 @@ object Tensor3:
       dtype,
     )
 
-class TensorIndexer[T <: Tuple : NamesOf](
+class TensorIndexer[T <: Tuple : ShapeTreeOf](
     private val tensor: Tensor[T],
     private val index: Tensor.IndicesOf[T]
 ):

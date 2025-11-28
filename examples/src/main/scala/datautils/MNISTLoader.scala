@@ -53,16 +53,10 @@ object MNISTLoader:
       val batchedLabelsJax = Jax.jnp.take(labels.jaxValue, indexArray, axis = 0)
 
       // Build shape for batched images: (batchSize, height, width)
-      val imageShape = Shape[BatchSample *: (Height, Width)](
-        shapeful.tensor.TupleHelpers.createTupleFromSeq(
-          Seq(indices.size, imagePixels.shape.dim[Height], imagePixels.shape.dim[Width])
-        )
-      )
+      val imageShape = ???
 
       // Build shape for batched labels: (batchSize, 1)
-      val labelShape = Shape[BatchSample *: Tuple1[Label]](
-        shapeful.tensor.TupleHelpers.createTupleFromSeq(Seq(indices.size, 1))
-      )
+      val labelShape = ???
 
       // Reshape labels to ensure they have the right shape (batchSize, 1)
       val reshapedLabelsJax = Jax.jnp.reshape(batchedLabelsJax, Seq(indices.size, 1).toPythonProxy)

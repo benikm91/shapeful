@@ -2,7 +2,7 @@ package object shapeful:
 
   import tensor.*
 
-  type Label = Singleton
+  type Label = Singleton | Tuple
 
   trait Dim[L <: Label]:
     def dim: Int

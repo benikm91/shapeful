@@ -3,25 +3,28 @@ package shapeful.tensorv2
 import shapeful.Label
 import scala.collection.View.Empty
 import scala.annotation.publicInBinary
-import TupleHelpers.NamesOf
+import TupleHelpers.ShapeTreeOf
 
 /** Represents the (typed) Shape of a tensor with runtime labels
   */
-final case class Shape[T <: Tuple : NamesOf] @publicInBinary private[tensorv2] (
+final case class Shape[T <: Tuple : ShapeTreeOf] @publicInBinary private (
   val dimensions: List[Int],
 ):
 
-  lazy val labels: List[String] = summon[NamesOf[T]].value
+  lazy val labelsTree: TupleHelpers.ShapeTree[String] = summon[ShapeTreeOf[T]].tree
+  lazy val labels: List[String] = labelsTree.toList
 
-  require(dimensions.size == labels.size, "Dimensions and labels must have the same size")
+  require(dimensions.size == labelsTree.width, s"Dimensions and labels must have the same size but got ${dimensions.size} dims and ${labels.size} labels, overall shape: $this")
   require(dimensions.forall(_ > 0), "All dimensions must be positive")
+   // TODO maybe same Axis must means symetric along these axes? => same length
+  // require(labels.distinct.size == labels.size, "Labels must be unique")
 
   def rank: Int = dimensions.size
   def size: Int = dimensions.foldLeft(1)((acc, d) => acc * d.asInstanceOf[Int])
   def dim[D <: Label](axis: Axis[D])(using axisIndex: AxisIndex[D, T]): Int = this.dimensions(axisIndex.value)
 
-  def *:[U <: Tuple : NamesOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
-    import NamesOf.ForConcat.given
+  def *:[U <: Tuple : ShapeTreeOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
+    import ShapeTreeOf.ForConcat.given
     new Shape(other.dimensions ++ dimensions)
 
   override def toString: String =
@@ -35,8 +38,8 @@ final case class Shape[T <: Tuple : NamesOf] @publicInBinary private[tensorv2] (
 
   override def hashCode(): Int = dimensions.hashCode() ^ labels.hashCode()
 
-  def ++[U <: Tuple : NamesOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
-    import NamesOf.ForConcat.given
+  def ++[U <: Tuple : ShapeTreeOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
+    import ShapeTreeOf.ForConcat.given
     new Shape(other.dimensions ++ dimensions)
 
   def +:[NewAxis <: Label : ValueOf](dim: (Axis[NewAxis], Int)): Shape[NewAxis *: T] = 
@@ -45,51 +48,50 @@ final case class Shape[T <: Tuple : NamesOf] @publicInBinary private[tensorv2] (
 object Shape:
 
   def empty: Shape[EmptyTuple] = new Shape(Nil)
+  
+  type ExtractLabels[Args <: Tuple] <: Tuple = Args match
+    case EmptyTuple => EmptyTuple
+    case (Axis[l], Int) *: tail => l *: ExtractLabels[tail]
 
-  def apply[L <: Label : ValueOf](dim: (Axis[L], Int)): Shape[L *: EmptyTuple] =
-    new Shape(List(dim._2))
+  def apply[L <: Label : ValueOf](dim: (Axis[L], Int)): Shape[L *: EmptyTuple]=
+    Shape.fromTuple(Tuple1(dim))
 
-  def apply[L1 <: Label : ValueOf, L2 <: Label : ValueOf](
-      dim1: (Axis[L1], Int),
-      dim2: (Axis[L2], Int)
-  ): Shape[L1 *: L2 *: EmptyTuple] =
-    new Shape(List(dim1._2, dim2._2))
+  def apply[A <: Tuple](args: A)(
+    using n: ShapeTreeOf[ExtractLabels[A]] 
+  ): Shape[ExtractLabels[A]] = Shape.fromTuple(args)
 
-  def apply[L1 <: Label : ValueOf, L2 <: Label : ValueOf, L3 <: Label : ValueOf](
-      dim1: (Axis[L1], Int),
-      dim2: (Axis[L2], Int),
-      dim3: (Axis[L3], Int)
-  ): Shape[L1 *: L2 *: L3 *: EmptyTuple] =
-    new Shape(
-      List(dim1._2, dim2._2, dim3._2),
-    )
+  def fromTuple[A <: Tuple](args: A)(
+    using n: ShapeTreeOf[ExtractLabels[A]] 
+  ): Shape[ExtractLabels[A]] =
+    val sizes = args.toList.collect {
+      case (_, s: Int) => s
+    }
+    new Shape(sizes)
+
+  private[tensorv2] def fromList[T <: Tuple : ShapeTreeOf](dims: List[Int]) = new Shape[T](dims)
 
   type Shape0 = Shape[EmptyTuple]
   type Shape1[L <: Label] = Shape[L *: EmptyTuple]
   type Shape2[L1 <: Label, L2 <: Label] = Shape[L1 *: L2 *: EmptyTuple]
-  type Shape3[L1 <: Label, L2 <: Label, L3 <: Label] =
-    Shape[L1 *: L2 *: L3 *: EmptyTuple]
+  type Shape3[L1 <: Label, L2 <: Label, L3 <: Label] = Shape[L1 *: L2 *: L3 *: EmptyTuple]
 
 val Shape0 = Shape.empty
 
 object Shape1:
-  def apply[L <: Label](dim: (Axis[L], Int))(using v: ValueOf[L]): Shape[L *: EmptyTuple] =
-    Shape(dim)
+  def apply[L <: Label](dim: (Axis[L], Int))(using v: ValueOf[L]): Shape[Tuple1[L]] = Shape(dim)
 
 object Shape2:
-  def apply[L1 <: Label, L2 <: Label](
+  def apply[L1 <: Label : ValueOf, L2 <: Label : ValueOf](
       dim1: (Axis[L1], Int),
       dim2: (Axis[L2], Int)
-  )(using v1: ValueOf[L1], v2: ValueOf[L2]): Shape[L1 *: L2 *: EmptyTuple] =
-    Shape(dim1, dim2)
+  ): Shape[(L1, L2)] = Shape.fromTuple(dim1, dim2)
 
 object Test:
   val x = Shape2(Axis["A"] -> 3, Axis["B"] -> 4)
 
 object Shape3:
-  def apply[L1 <: Label, L2 <: Label, L3 <: Label](
+  def apply[L1 <: Label : ValueOf, L2 <: Label : ValueOf, L3 <: Label : ValueOf](
       dim1: (Axis[L1], Int),
       dim2: (Axis[L2], Int),
       dim3: (Axis[L3], Int)
-  )(using v1: ValueOf[L1], v2: ValueOf[L2], v3: ValueOf[L3]): Shape[L1 *: L2 *: L3 *: EmptyTuple] =
-    Shape(dim1, dim2, dim3)
+  ): Shape[(L1, L2, L3)] = Shape.fromTuple(dim1, dim2, dim3)
