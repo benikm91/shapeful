@@ -4,7 +4,7 @@ import shapeful.tensorv2.{Axis, Shape, Tensor1, Tensor2, Tensor, DType, Device}
 import scala.collection.compat.immutable.ArraySeq
 import shapeful.tensorv2.TensorOps.*
 import shapeful.tensorv2.TupleHelpers
-import shapeful.tensorv2.TupleHelpers.ShapeTreeOf
+import shapeful.tensorv2.TupleHelpers.TreeOf
 import shapeful.tensorv2.TupleHelpers.TupleFlat
 import shapeful.tensorv2.TupleHelpers.UnwrapAxes
 
@@ -105,6 +105,20 @@ def main(args: Array[String]): Unit =
       )
     )
     println(d.shape)
+    val lala = d.rearrange(
+      (
+        Axis[((Batch, Frame), (Width, Height))],
+        Axis[Channel]
+      )
+    )
+    println(lala.shape)
+    /*val lala2 = d.rearrange(
+      (
+        Axis[((Batch, Frame, Width))],
+        Axis[(Height, Channel)]
+      )
+    )
+    println(lala2.shape)*/
     val e = d.rearrange(
       (Axis[Batch], Axis[Frame], Axis[Width], Axis[Height], Axis[Channel]),
       (

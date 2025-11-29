@@ -3,7 +3,7 @@ package shapeful.tensorv2
 import shapeful.Label
 import scala.collection.View.Empty
 import scala.annotation.publicInBinary
-import TupleHelpers.ShapeTreeOf
+import TupleHelpers.{ShapeTreeOf, TreeOf}
 
 /** Represents the (typed) Shape of a tensor with runtime labels
   */
@@ -11,10 +11,10 @@ final case class Shape[T <: Tuple : ShapeTreeOf] @publicInBinary private (
   val dimensions: List[Int],
 ):
 
-  lazy val labelsTree: TupleHelpers.ShapeTree[String] = summon[ShapeTreeOf[T]].tree
+  lazy val labelsTree: TupleHelpers.Tree[String] = summon[ShapeTreeOf[T]].tree
   lazy val labels: List[String] = labelsTree.toList
 
-  require(dimensions.size == labelsTree.width, s"Dimensions and labels must have the same size but got ${dimensions.size} dims and ${labels.size} labels, overall shape: $this")
+  require(dimensions.size == labelsTree.width, s"Dimensions and labels must have the same size but got ${dimensions.size} dims and ${labelsTree.width} labels, overall shape: $this")
   require(dimensions.forall(_ > 0), "All dimensions must be positive")
    // TODO maybe same Axis must means symetric along these axes? => same length
   // require(labels.distinct.size == labels.size, "Labels must be unique")
@@ -24,7 +24,7 @@ final case class Shape[T <: Tuple : ShapeTreeOf] @publicInBinary private (
   def dim[D <: Label](axis: Axis[D])(using axisIndex: AxisIndex[D, T]): Int = this.dimensions(axisIndex.value)
 
   def *:[U <: Tuple : ShapeTreeOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
-    import ShapeTreeOf.ForConcat.given
+    import TreeOf.ForConcat.given
     new Shape(other.dimensions ++ dimensions)
 
   override def toString: String =
@@ -39,7 +39,7 @@ final case class Shape[T <: Tuple : ShapeTreeOf] @publicInBinary private (
   override def hashCode(): Int = dimensions.hashCode() ^ labels.hashCode()
 
   def ++[U <: Tuple : ShapeTreeOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
-    import ShapeTreeOf.ForConcat.given
+    import TreeOf.ForConcat.given
     new Shape(other.dimensions ++ dimensions)
 
   def +:[NewAxis <: Label : ValueOf](dim: (Axis[NewAxis], Int)): Shape[NewAxis *: T] = 
