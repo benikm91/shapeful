@@ -35,131 +35,78 @@ object TupleHelpers:
       case _      => A
   ]
 
-  type ShapeTreeValue = (String)
+  trait NameOf[T]:
+    def tree: List[String]
 
-  enum Tree[+A]:
-    case Empty extends Tree[Nothing]
-    case Leaf(name: A) extends Tree[A]
-    case Node(children: List[Tree[A]]) extends Tree[A]
+  class NameOfImpl[T](val tree: List[String]) extends NameOf[T]
 
-    def width: Int = this match 
-      case Tree.Empty => 0
-      case Tree.Leaf(name) => 1
-      case Tree.Node(children) => children.size
+  object NameOf:
 
-    def toList: List[A] = this match
-      case Empty => Nil
-      case Leaf(name) => List(name)
-      case Node(children) => children.flatMap(_.toList)
-
-    def mkString(sep: String, groupStart: String = "", groupEnd: String = "", nextGroupStart: String = "(", nextGroupEnd: String = ")"): String = this match
-      case Empty => ""
-      case Leaf(name) => name.toString
-      case Node(children) => groupStart + children.map(_.mkString(sep, nextGroupStart, nextGroupEnd)).mkString(sep) + groupEnd
-
-    /** Remove the leaf at the given index from the NameTree. */
-    def remove(idx: Int): Tree[A] =
-      def helper(tree: Tree[A], currentIdx: Int): (Tree[A], Int)
-        = tree match
-          case Empty => (Empty, currentIdx)
-          case Leaf(name) =>
-            if currentIdx == idx then (Empty, currentIdx + 1)
-            else (Leaf(name), currentIdx + 1)
-          case Node(children) =>
-            val (newChildren, newIdx) = children.foldLeft((List.empty[Tree[A]], currentIdx)) {
-              case ((acc, curIdx), child) =>
-                val (newChild, nextIdx) = helper(child, curIdx)
-                if newChild == Empty then (acc, nextIdx)
-                else (acc :+ newChild, nextIdx)
-            }
-            (Node(newChildren), newIdx)
-      helper(this, 0)._1
-
-    def ::[B >: A](other: Tree[B]): Tree[B] = 
-      (this, other) match
-        case (Tree.Empty, _) => other
-        case (_, Tree.Empty) => this
-        case (Leaf(_), Node(lst)) => Node(this :: lst)
-        case (Node(lst), Leaf(_)) => Node(lst :+ other)
-        case (Node(lst1), Node(lst2)) => Node(lst1 ++ lst2)
-        case (Leaf(_), Leaf(_)) => Node(List(this, other))
-
-  trait TreeOf[V, T]:
-    def tree: Tree[V]
-
-  type ShapeTreeOf[T] = TreeOf[String, T]
-
-  class TreeOfImpl[V, T](val tree: Tree[V]) extends TreeOf[V, T]
-
-  object TreeOf:
-
-    type V = String
-    
     // empty case
-    given namesOfEmpty[V]: TreeOf[V, EmptyTuple] =
-      new TreeOfImpl[V, EmptyTuple](Tree.Empty)
+    given namesOfEmpty: NameOf[EmptyTuple] =
+      new NameOfImpl[EmptyTuple](Nil)
 
     // lift ValueOf of to NameOf
     given [head] (using
         v: ValueOf[head],
-    ): TreeOf[String, head] = new TreeOfImpl[String, head](Tree.Leaf(v.value.toString))
+    ): NameOf[head] = new NameOfImpl[head](List(v.value.toString))
 
     // Stack a tuple to group of leaves
-    given [A, B](using  a: TreeOf[V, A], b: TreeOf[V, B]): TreeOf[V, (A, B)] = new TreeOfImpl[V, (A, B)](Tree.Node(List(a.tree, b.tree)))
-    given [A, B, C](using  a: TreeOf[V, A], b: TreeOf[V, B], c: TreeOf[V, C]): TreeOf[V, (A, B, C)] = new TreeOfImpl[V, (A, B, C)](Tree.Node(List(a.tree, b.tree, c.tree)))
-    given [A, B, C, D](using  a: TreeOf[V, A], b: TreeOf[V, B], c: TreeOf[V, C], d: TreeOf[V, D]): TreeOf[V, (A, B, C, D)] = new TreeOfImpl[V, (A, B, C, D)](Tree.Node(List(a.tree, b.tree, c.tree, d.tree)))
-    given [A, B, C, D, E](using  a: TreeOf[V, A], b: TreeOf[V, B], c: TreeOf[V, C], d: TreeOf[V, D], e: TreeOf[V, E]): TreeOf[V, (A, B, C, D, E)] = new TreeOfImpl[V, (A, B, C, D, E)](Tree.Node(List(a.tree, b.tree, c.tree, d.tree, e.tree)))
-    given [A, B, C, D, E, F](using  a: TreeOf[V, A], b: TreeOf[V, B], c: TreeOf[V, C], d: TreeOf[V, D], e: TreeOf[V, E], f: TreeOf[V, F]): TreeOf[V, (A, B, C, D, E, F)] = new TreeOfImpl[V, (A, B, C, D, E, F)](Tree.Node(List(a.tree, b.tree, c.tree, d.tree, e.tree, f.tree)))
-
+    given [A, B](using  a: NameOf[A], b: NameOf[B]): NameOf[(A, B)] = new NameOfImpl[(A, B)](a.tree ++ b.tree)
+    given [A, B, C](using  a: NameOf[A], b: NameOf[B], c: NameOf[C]): NameOf[(A, B, C)] = new NameOfImpl[(A, B, C)](a.tree ++ b.tree ++ c.tree)
+    given [A, B, C, D](using  a: NameOf[A], b: NameOf[B], c: NameOf[C], d: NameOf[D]): NameOf[(A, B, C, D)] = new NameOfImpl[(A, B, C, D)](a.tree ++ b.tree ++ c.tree ++ d.tree)
+    given [A, B, C, D, E](using  a: NameOf[A], b: NameOf[B], c: NameOf[C], d: NameOf[D], e: NameOf[E]): NameOf[(A, B, C, D, E)] = new NameOfImpl[(A, B, C, D, E)](a.tree ++ b.tree ++ c.tree ++ d.tree ++ e.tree)
+    given [A, B, C, D, E, F](using  a: NameOf[A], b: NameOf[B], c: NameOf[C], d: NameOf[D], e: NameOf[E], f: NameOf[F]): NameOf[(A, B, C, D, E, F)] = new NameOfImpl[(A, B, C, D, E, F)](a.tree ++ b.tree ++ c.tree ++ d.tree ++ e.tree ++ f.tree)  
+    
     // append a value to a tuple
     given [head, tail <: Tuple](
       using 
       v: ValueOf[head],
-      t: TreeOf[String, tail],
-    ): TreeOf[String, head *: tail] = new TreeOfImpl[String, head *: tail](
-      Tree.Leaf(v.value.toString) :: t.tree
+      t: NameOf[tail],
+    ): NameOf[head *: tail] = new NameOfImpl[head *: tail](
+      v.value.toString :: t.tree
     )
 
     object ForConcat:
       given concatNames[V, A <: Tuple, B <: Tuple](using
-        namesA: TreeOf[V, A],
-        namesB: TreeOf[V, B]
-      ): TreeOf[V, Tuple.Concat[A, B]] =
-        new TreeOfImpl[V, Tuple.Concat[A, B]](namesA.tree :: namesB.tree)
+        namesA: NameOf[A],
+        namesB: NameOf[B]
+      ): NameOf[Tuple.Concat[A, B]] =
+        new NameOfImpl[Tuple.Concat[A, B]](namesA.tree ++ namesB.tree)
 
     object ForRemove:
       given derivedRemoveNames[V, A, T <: Tuple](using 
-        base: TreeOf[V, T], 
+        base: NameOf[T], 
         idx: AxisIndex[A, T]
-      ): TreeOf[V, TupleHelpers.Remove[A, T]] = 
-        new TreeOfImpl(base.tree.remove(idx.value))
+      ): NameOf[TupleHelpers.Remove[A, T]] = 
+        new NameOfImpl(base.tree.patch(idx.value, Nil, 1))
 
       given derivedRemoveTwoNames[V, A, B, From <: Tuple](using
-        base: TreeOf[V, From],
+        base: NameOf[From],
         idx1: AxisIndex[A, From],
         idx2: AxisIndex[B, From],
-      ): TreeOf[V, TupleHelpers.Remove[A, TupleHelpers.Remove[B, From]]] =
-        new TreeOfImpl(
+      ): NameOf[TupleHelpers.Remove[A, TupleHelpers.Remove[B, From]]] =
+        new NameOfImpl(
           base.tree
-            .remove(idx2.value)
-            .remove(if idx1.value < idx2.value then idx1.value else idx1.value - 1)
+            .patch(idx2.value, Nil, 1)
+            .patch(if idx1.value < idx2.value then idx1.value else idx1.value - 1, Nil, 1)
         )
 
       given derivedRemoveThreeNames[V, A, B, C, From <: Tuple](using
-        base: TreeOf[V, From],
+        base: NameOf[From],
         idx1: AxisIndex[A, From],
         idx2: AxisIndex[B, From],
         idx3: AxisIndex[C, From],
-      ): TreeOf[V, TupleHelpers.Remove[A, TupleHelpers.Remove[B, TupleHelpers.Remove[C, From]]]] =
-        new TreeOfImpl(
+      ): NameOf[TupleHelpers.Remove[A, TupleHelpers.Remove[B, TupleHelpers.Remove[C, From]]]] =
+        new NameOfImpl(
           base.tree
-            .remove(idx3.value)
-            .remove(if idx2.value < idx3.value then idx2.value else idx2.value - 1)
-            .remove(
+            .patch(idx3.value, Nil, 1)
+            .patch(if idx2.value < idx3.value then idx2.value else idx2.value - 1, Nil, 1)
+            .patch(
               if idx1.value < idx2.value && idx1.value < idx3.value then idx1.value
               else if (idx1.value > idx2.value && idx1.value < idx3.value) || (idx1.value < idx2.value && idx1.value > idx3.value) then idx1.value - 1
               else idx1.value - 2
-            )
+            , Nil, 1)
         )
 
     object ForContractResult:

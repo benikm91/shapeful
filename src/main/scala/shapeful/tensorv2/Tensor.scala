@@ -7,7 +7,7 @@ import shapeful.jaxv2.Jax
 import shapeful.jaxv2.JaxDType
 import shapeful.jaxv2.Jax.PyDynamic
 import shapeful.Label
-import shapeful.tensorv2.TupleHelpers.ShapeTreeOf
+import shapeful.tensorv2.TupleHelpers.NameOf
 import shapeful.random.Random
 import me.shadaj.scalapy.py.SeqConverters
 
@@ -22,7 +22,7 @@ object Device:
     Device.CPU
   )
 
-case class Tensor[T <: Tuple : ShapeTreeOf] private[tensorv2] (
+case class Tensor[T <: Tuple : NameOf] private[tensorv2] (
   val jaxValue: Jax.PyDynamic,
 ):
 
@@ -40,7 +40,7 @@ case class Tensor[T <: Tuple : ShapeTreeOf] private[tensorv2] (
   def toDevice(newDevice: Device): Tensor[T] = 
     Tensor(jaxValue = Jax.device_put(jaxValue, newDevice.jaxDevice))
 
-  def reshape[NewT <: Tuple : ShapeTreeOf](newShape: Shape[NewT]): Tensor[NewT] =
+  def reshape[NewT <: Tuple : NameOf](newShape: Shape[NewT]): Tensor[NewT] =
     require(shape.size == newShape.size, "New shape must have the same number of elements")
     Tensor(Jax.jnp.reshape(jaxValue, newShape.dimensions.toPythonProxy))
 
@@ -94,7 +94,7 @@ object Tensor:
   type Tensor3[L1 <: Label, L2 <: Label, L3 <: Label] = Tensor[(L1, L2, L3)]
   type Tensor4[L1 <: Label, L2 <: Label, L3 <: Label, L4 <: Label] = Tensor[(L1, L2, L3, L4)]
 
-  def apply[T <: Tuple : ShapeTreeOf](shape: Shape[T], values: ArraySeq[Float], dtype: DType = DType.Float32, device: Device = Device.default): Tensor[T] =
+  def apply[T <: Tuple : NameOf](shape: Shape[T], values: ArraySeq[Float], dtype: DType = DType.Float32, device: Device = Device.default): Tensor[T] =
     require(values.length == shape.size, s"Values length ${values.length} does not match shape size ${shape.size}")
     val jaxValues = Jax.jnp
       .array(
@@ -105,15 +105,15 @@ object Tensor:
       .reshape(shape.dimensions.toPythonProxy)
     Tensor(jaxValues)
 
-  def zeros[T <: Tuple : ShapeTreeOf](shape: Shape[T], dtype: DType = DType.Float32): Tensor[T] =
+  def zeros[T <: Tuple : NameOf](shape: Shape[T], dtype: DType = DType.Float32): Tensor[T] =
     Tensor(Jax.jnp.zeros(shape.dimensions.toPythonProxy, dtype = dtype.jaxType))
 
-  def ones[T <: Tuple : ShapeTreeOf](shape: Shape[T], dtype: DType = DType.Float32): Tensor[T] =
+  def ones[T <: Tuple : NameOf](shape: Shape[T], dtype: DType = DType.Float32): Tensor[T] =
     Tensor(Jax.jnp.ones(shape.dimensions.toPythonProxy, dtype = dtype.jaxType))
 
   /** stack a sequence of tensors along a new axis
     */
-  def stack[T <: Tuple : ShapeTreeOf, NewAxis <: Label : ValueOf](
+  def stack[T <: Tuple : NameOf, NewAxis <: Label : ValueOf](
       axis: Axis[NewAxis]
   )(
       tensors: Seq[Tensor[T]]
@@ -127,7 +127,7 @@ object Tensor:
 
   /** Concat tensors along an existing axis
     */
-  inline def concat[T <: Tuple : ShapeTreeOf, ConcatAxis <: Label](
+  inline def concat[T <: Tuple : NameOf, ConcatAxis <: Label](
       axis: Axis[ConcatAxis]
   )(
       tensors: Seq[Tensor[T]]
@@ -229,7 +229,7 @@ object Tensor3:
       dtype,
     )
 
-class TensorIndexer[T <: Tuple : ShapeTreeOf](
+class TensorIndexer[T <: Tuple : NameOf](
     private val tensor: Tensor[T],
     private val index: Tensor.IndicesOf[T]
 ):

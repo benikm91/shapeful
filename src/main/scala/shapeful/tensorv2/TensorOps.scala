@@ -7,7 +7,7 @@ import scala.annotation.targetName
 import scala.util.NotGiven
 import Tensor.{Tensor0, Tensor1, Tensor2}
 import shapeful.jax.Jax.PyDynamic
-import TupleHelpers.{TreeOf, ShapeTreeOf}
+import TupleHelpers.NameOf
 import scala.annotation.implicitNotFound
 import TupleHelpers.{UnwrapAxes, TupleFlat}
 import shapeful.tensorv2.TupleHelpers.DimExtractor
@@ -17,9 +17,9 @@ object TensorOps:
   extension (l: List[String])
     def removeAt(index: Int): List[String] = l.patch(index, Nil, 1)
 
-  extension [T <: Tuple : ShapeTreeOf](t: Tensor[T])
+  extension [T <: Tuple : NameOf](t: Tensor[T])
 
-    def vmap[VmapAxis <: Label : ValueOf, OuterShape <: Tuple : ShapeTreeOf](
+    def vmap[VmapAxis <: Label : ValueOf, OuterShape <: Tuple : NameOf](
       axis: Axis[VmapAxis]
     )(
         f: Tensor[TupleHelpers.Remove[VmapAxis, T]] => Tensor[OuterShape]
@@ -27,7 +27,7 @@ object TensorOps:
       using 
       vmapAxisIndex: AxisIndex[VmapAxis, T],
     ): Tensor[Tuple.Concat[Tuple1[VmapAxis], OuterShape]] =
-      import TreeOf.ForRemove.given
+      import NameOf.ForRemove.given
       val fpy = (jxpr: Jax.PyDynamic) =>
         val innerTensor = Tensor[TupleHelpers.Remove[VmapAxis, T]](jxpr)
         val result = f(innerTensor)
@@ -106,49 +106,49 @@ object TensorOps:
     def sum[ReduceAxis <: Label](
         axis: Axis[ReduceAxis]
     )(using axisIndex: AxisIndex[ReduceAxis, T]): Tensor[TupleHelpers.Remove[ReduceAxis, T]] =
-      import TreeOf.ForRemove.given
+      import NameOf.ForRemove.given
       Tensor(Jax.jnp.sum(t.jaxValue, axis = axisIndex.value))
 
     def mean[ReduceAxis <: Label](
         axis: Axis[ReduceAxis]
     )(using axisIndex: AxisIndex[ReduceAxis, T]): Tensor[TupleHelpers.Remove[ReduceAxis, T]] =
-      import TreeOf.ForRemove.given
+      import NameOf.ForRemove.given
       Tensor(Jax.jnp.mean(t.jaxValue, axis = axisIndex.value))
 
     def max[ReduceAxis <: Label](
         axis: Axis[ReduceAxis]
     )(using axisIndex: AxisIndex[ReduceAxis, T]): Tensor[TupleHelpers.Remove[ReduceAxis, T]] =
-      import TreeOf.ForRemove.given
+      import NameOf.ForRemove.given
       Tensor(Jax.jnp.max(t.jaxValue, axis = axisIndex.value))
 
     def min[ReduceAxis <: Label](
         axis: Axis[ReduceAxis]
     )(using axisIndex: AxisIndex[ReduceAxis, T]): Tensor[TupleHelpers.Remove[ReduceAxis, T]] =
-      import TreeOf.ForRemove.given
+      import NameOf.ForRemove.given
       Tensor(Jax.jnp.min(t.jaxValue, axis = axisIndex.value))
 
     def argmax[ReduceAxis <: Label](
         axis: Axis[ReduceAxis]
     )(using axisIndex: AxisIndex[ReduceAxis, T]): Tensor[TupleHelpers.Remove[ReduceAxis, T]] =
-      import TreeOf.ForRemove.given
+      import NameOf.ForRemove.given
       Tensor(Jax.jnp.argmax(t.jaxValue, axis = axisIndex.value))
 
     def argmin[ReduceAxis <: Label](
         axis: Axis[ReduceAxis]
     )(using axisIndex: AxisIndex[ReduceAxis, T]): Tensor[TupleHelpers.Remove[ReduceAxis, T]] =
-      import TreeOf.ForRemove.given
+      import NameOf.ForRemove.given
       Tensor(Jax.jnp.argmin(t.jaxValue, axis = axisIndex.value))
 
     def std[ReduceAxis <: Label](
         axis: Axis[ReduceAxis]
     )(using axisIndex: AxisIndex[ReduceAxis, T]): Tensor[TupleHelpers.Remove[ReduceAxis, T]] =
-      import TreeOf.ForRemove.given
+      import NameOf.ForRemove.given
       Tensor(Jax.jnp.std(t.jaxValue, axis = axisIndex.value))
 
     def variance[ReduceAxis <: Label](
         axis: Axis[ReduceAxis]
     )(using axisIndex: AxisIndex[ReduceAxis, T]): Tensor[TupleHelpers.Remove[ReduceAxis, T]] =
-      import TreeOf.ForRemove.given
+      import NameOf.ForRemove.given
       Tensor(Jax.jnp.`var`(t.jaxValue, axis = axisIndex.value))
 
     def abs: Tensor[T] = applyUniaryJaxF(Jax.jnp.abs)
@@ -226,11 +226,11 @@ object TensorOps:
     def as[NewL1 <: Label, NewL2 <: Label](newAxis1: Axis[NewL1], newAxis2: Axis[NewL2]): Tensor2[NewL1, NewL2] = 
       t.asInstanceOf[Tensor[(NewL1, NewL2)]]
 
-  extension [T <: Tuple : ShapeTreeOf](tensor: Tensor[T])
+  extension [T <: Tuple : NameOf](tensor: Tensor[T])
 
     def contract[
         ContractAxis <: Label,
-        OtherShape <: Tuple : ShapeTreeOf,
+        OtherShape <: Tuple : NameOf,
     ](
         axis: Axis[ContractAxis]
     )(
@@ -248,7 +248,7 @@ object TensorOps:
       thisAxisIndex: AxisIndex[ContractAxis, T],
       otherAxisIndex: AxisIndex[ContractAxis, OtherShape],
     ): Tensor[TupleHelpers.ContractResult[T, OtherShape, ContractAxis]] =
-      import TreeOf.ForContractResult.given
+      import NameOf.ForContractResult.given
       import me.shadaj.scalapy.py.SeqConverters
 
       val axesTuple1 = Jax.Dynamic.global.tuple(Seq(thisAxisIndex.value).toPythonProxy)
@@ -263,8 +263,8 @@ object TensorOps:
 
       Tensor(result)
 
-    def outerProduct[OtherShape <: Tuple : ShapeTreeOf](other: Tensor[OtherShape]): Tensor[Tuple.Concat[T, OtherShape]] =
-      import TreeOf.ForConcat.given
+    def outerProduct[OtherShape <: Tuple : NameOf](other: Tensor[OtherShape]): Tensor[Tuple.Concat[T, OtherShape]] =
+      import NameOf.ForConcat.given
       import me.shadaj.scalapy.py.SeqConverters
       Tensor[Tuple.Concat[T, OtherShape]](
         // Jax outer product flattens the result, so we need to reshape it back to the original shape
@@ -281,8 +281,8 @@ object TensorOps:
         newOrder: newT,
     )(
       using 
-      evAllAxesInTensor: TupleFlat[UnwrapAxes[newT]] =:= TupleFlat[T],
-      newNames: ShapeTreeOf[UnwrapAxes[newT]],
+      // evAllAxesInTensor: TupleFlat[UnwrapAxes[newT]] =:= TupleFlat[T],
+      newNames: NameOf[UnwrapAxes[newT]],
     ): Tensor[UnwrapAxes[newT]] = rearrange[newT, EmptyTuple](newOrder, EmptyTuple)
 
     def rearrange[newT <: Tuple, Dims <: Tuple](
@@ -290,40 +290,22 @@ object TensorOps:
         dims: Dims,
     )(
       using 
-      evAllAxesInTensor: TupleFlat[UnwrapAxes[newT]] =:= TupleFlat[T],
-      newNames: ShapeTreeOf[UnwrapAxes[newT]],
+      // evAllAxesInTensor: TupleFlat[UnwrapAxes[newT]] =:= TupleFlat[T],
+      newNames: NameOf[UnwrapAxes[newT]],
       extractor: DimExtractor[Dims],
     ): Tensor[UnwrapAxes[newT]] =
       def createEinopsPattern(fromPattern: String, toPattern: String): String =
-        /** 
-         * Replace shared groups like "... (w h) ... -> ..., (w h) ..." with dummy "... w_h ... -> ... w_h ...""
-         * Necessary because einops does not support shared groups in from and to patterns.
-         */ 
-        def replaceSharedGroups(fromPattern: String, toPattern: String): (String, String) =
-          def tokenize(s: String): List[String] = 
-            val tokenRegex = """\([^()]*\)|[^\s()]+""".r
-            tokenRegex.findAllIn(s).toList
-          def findGroups(tokens: List[String]): Set[String] = 
-            tokens.filter(str => str.startsWith("(") && str.endsWith(")")).toSet
-          val fromTokens = tokenize(fromPattern)
-          val toTokens = tokenize(toPattern)
-          val fromGroups = findGroups(fromTokens)
-          val toGroups = findGroups(toTokens)
-          val sharedGroups = fromGroups.intersect(toGroups)
-          val aliases = sharedGroups.map { groupStr =>
-            val cleanName = groupStr.replaceAll("[()]", "").trim.replaceAll("\\s+", "_")
-            groupStr -> cleanName
-          }.toMap
-          val fromCleaned = aliases.foldLeft(fromPattern) { case (pattern, (original, alias)) =>
-            pattern.replace(original, alias)
-          }
-          val toCleaned = aliases.foldLeft(toPattern) { case (pattern, (original, alias)) =>
-            pattern.replace(original, alias)
-          }
-          (fromCleaned, toCleaned)
-        val (fromCleaned, toCleaned) = replaceSharedGroups(fromPattern, toPattern)
-        s"$fromCleaned -> $toCleaned"
-      val fromPattern = tensor.shape.labelsTree.mkString(" ")
+        def cleanPattern(pattern: String): String =
+          // to replace all a*b*c in pattern with (a b c), example:
+          // "a*b*c d e f*g h" -> "(a b c) d e (f g) h"
+          val regex = raw"([a-zA-Z0-9_]+(\*[a-zA-Z0-9_]+)+)".r
+          regex.replaceAllIn(pattern, m => {
+            val group = m.group(1)
+            val replaced = group.split("\\*").mkString("(", " ", ")")
+            replaced
+          })
+        s"${cleanPattern(fromPattern)} -> ${cleanPattern(toPattern)}"
+      val fromPattern = tensor.shape.labels.mkString(" ")
       val toPattern = newNames.tree.mkString(" ")
       val pattern = createEinopsPattern(fromPattern, toPattern)
       val dimSizesMap = extractor.extract(dims)

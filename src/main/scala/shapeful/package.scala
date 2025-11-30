@@ -1,9 +1,13 @@
 package object shapeful:
 
   import tensor.*
+  import scala.compiletime.ops.string.+
 
   type Label = Singleton | Tuple
 
+  object StringMath:
+    infix type *[A <: String, B <: String] = A + "*" + B
+  
   trait Dim[L <: Label]:
     def dim: Int
 

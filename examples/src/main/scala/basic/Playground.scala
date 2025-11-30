@@ -1,10 +1,11 @@
 package src.main.scala.basic
 
+import shapeful.StringMath.*
 import shapeful.tensorv2.{Axis, Shape, Tensor1, Tensor2, Tensor, DType, Device}
 import scala.collection.compat.immutable.ArraySeq
 import shapeful.tensorv2.TensorOps.*
 import shapeful.tensorv2.TupleHelpers
-import shapeful.tensorv2.TupleHelpers.TreeOf
+import shapeful.tensorv2.TupleHelpers.NameOf
 import shapeful.tensorv2.TupleHelpers.TupleFlat
 import shapeful.tensorv2.TupleHelpers.UnwrapAxes
 
@@ -97,14 +98,16 @@ def main(args: Array[String]): Unit =
       Axis[Height] -> 256,
       Axis[Channel] -> 3,
     ))
+    type X = Batch * Frame
     val d = X.rearrange(
       (
-        Axis[(Batch, Frame)],
-        Axis[(Width, Height)],
+        Axis[Batch * Frame],
+        Axis[Width * Height],
         Axis[Channel]
       )
     )
     println(d.shape)
+    /*
     val lala = d.rearrange(
       (
         Axis[((Batch, Frame), (Width, Height))],
@@ -139,4 +142,5 @@ def main(args: Array[String]): Unit =
     println(f.shape)
     val g = d.relabel(Axis[(Batch, Frame)], Axis[Frame])
     println(g.shape)
+    */
   }
