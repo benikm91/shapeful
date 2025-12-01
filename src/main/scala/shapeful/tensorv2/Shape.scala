@@ -3,7 +3,7 @@ package shapeful.tensorv2
 import shapeful.Label
 import scala.collection.View.Empty
 import scala.annotation.publicInBinary
-import TupleHelpers.NameOf
+import shapeful.tensorv2.TupleHelpers.NameOf
 
 /** Represents the (typed) Shape of a tensor with runtime labels
   */
@@ -20,9 +20,9 @@ final case class Shape[T <: Tuple : NameOf] @publicInBinary private (
 
   def rank: Int = dimensions.size
   def size: Int = dimensions.foldLeft(1)((acc, d) => acc * d.asInstanceOf[Int])
-  def dim[D <: Label](axis: Axis[D])(using axisIndex: AxisIndex[D, T]): Int = this.dimensions(axisIndex.value)
+  def dim[L <: Label](axis: Axis[L])(using axisIndex: AxisIndex[T, L]): Int = this.dimensions(axisIndex.value)
 
-  def *:[U <: Tuple : NameOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
+  def *:[U <: Tuple: NameOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
     import NameOf.ForConcat.given
     new Shape(other.dimensions ++ dimensions)
 
@@ -37,7 +37,7 @@ final case class Shape[T <: Tuple : NameOf] @publicInBinary private (
 
   override def hashCode(): Int = dimensions.hashCode() ^ labels.hashCode()
 
-  def ++[U <: Tuple : NameOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
+  def ++[U <: Tuple: NameOf](other: Shape[U]): Shape[Tuple.Concat[U, T]] =
     import NameOf.ForConcat.given
     new Shape(other.dimensions ++ dimensions)
 

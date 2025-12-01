@@ -105,42 +105,21 @@ object Tensor:
       .reshape(shape.dimensions.toPythonProxy)
     Tensor(jaxValues)
 
+  def stack[L <: Label : ValueOf, T <: Tuple : NameOf](
+    tensors: Seq[Tensor[T]], 
+    axis: Axis[L],
+  ): Tensor[L *: T] =
+    require(tensors.nonEmpty, "Cannot stack an empty sequence of tensors")
+    val jaxValuesSeq = tensors.map(_.jaxValue).toPythonProxy
+    val stackedJaxValue = Jax.jnp.stack(jaxValuesSeq, axis = 0)
+    Tensor(stackedJaxValue)
+
   def zeros[T <: Tuple : NameOf](shape: Shape[T], dtype: DType = DType.Float32): Tensor[T] =
     Tensor(Jax.jnp.zeros(shape.dimensions.toPythonProxy, dtype = dtype.jaxType))
 
   def ones[T <: Tuple : NameOf](shape: Shape[T], dtype: DType = DType.Float32): Tensor[T] =
     Tensor(Jax.jnp.ones(shape.dimensions.toPythonProxy, dtype = dtype.jaxType))
 
-  /** stack a sequence of tensors along a new axis
-    */
-  def stack[T <: Tuple : NameOf, NewAxis <: Label : ValueOf](
-      axis: Axis[NewAxis]
-  )(
-      tensors: Seq[Tensor[T]]
-  ): Tensor[Tuple.Concat[Tuple1[NewAxis], T]] =
-    require(tensors.nonEmpty, "Cannot stack empty sequence of tensors")
-    val refShape = tensors.head.shape
-    require(tensors.forall(_.shape.dimensions == refShape.dimensions), "All tensors must have the same shape to stack")
-    new Tensor(
-      Jax.jnp.stack(tensors.map(_.jaxValue).toPythonProxy),
-    )
-
-  /** Concat tensors along an existing axis
-    */
-  inline def concat[T <: Tuple : NameOf, ConcatAxis <: Label](
-      axis: Axis[ConcatAxis]
-  )(
-      tensors: Seq[Tensor[T]]
-  )(
-    using axisIndex: AxisIndex[ConcatAxis, T],
-  ): Tensor[T] =
-    require(tensors.nonEmpty, "Cannot concat empty sequence of tensors")
-    Tensor(
-      Jax.jnp.concatenate(
-        tensors.map(_.jaxValue).toPythonProxy, 
-        axis = axisIndex.value
-      ),
-    )
 
 object Tensor0:
   import Tensor.{Tensor0, Tensor1}

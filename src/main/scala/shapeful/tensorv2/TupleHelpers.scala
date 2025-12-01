@@ -3,6 +3,81 @@ package shapeful.tensorv2
 import scala.compiletime.{error, erasedValue, constValue, summonInline}
 import shapeful.Label
 import scala.util.NotGiven
+import shapeful.tensorv2.TupleHelpers.ValuesOf.WrapAxes
+
+import scala.util.NotGiven
+import shapeful.tensorv2.TupleHelpers.UnwrapAxes
+import javax.smartcardio.ATR
+
+/***
+ * Type class to remove an axis from a tuple of axes.
+ */
+trait Remover[Axes <: Tuple, Axis]:
+  type Out <: Tuple
+
+object Remover:
+  
+  given headMatch[A, Tail <: Tuple]: Remover[A *: Tail, A] with
+    type Out = Tail
+
+  // recurse[L3, L2, L3 *: EmptyTuple.type]
+  given recurse[A, H, T <: Tuple, TailOut <: Tuple](
+    using 
+    next: Remover[T, A] { type Out = TailOut },
+    ev: Tuple.Contains[T, A] =:= true,
+  ): Remover[H *: T, A] with
+    type Out = H *: next.Out
+
+trait RemoverAll[T <: Tuple, ToRemove <: Tuple]:
+  type Out <: Tuple
+
+object RemoverAll:
+
+  given empty[T <: Tuple]: RemoverAll[T, EmptyTuple] with
+    type Out = T
+
+  given recurse[Head, TailToRemove <: Tuple, From <: Tuple, Intermediate <: Tuple, OutTail <: Tuple](
+    using
+    remover: Remover[From, Head] { type Out = Intermediate },
+    next: RemoverAll[Intermediate, TailToRemove] { type Out = OutTail }
+  ): RemoverAll[From, Head *: TailToRemove] with
+    type Out = OutTail
+
+type AxesTuple[T <: Tuple] <: Tuple = T match 
+  case EmptyTuple       => EmptyTuple
+  case head *: tail     => Axis[head] *: AxesTuple[tail]
+
+type UnAxesTuple[T <: Tuple] <: Tuple = T match 
+  case EmptyTuple       => EmptyTuple
+  case AxesTuple[t]     => t
+
+trait AxesUnwrapper[AT <: Tuple]:
+  type Out <: Tuple
+
+object AxesUnwrapper:
+
+  given empty: AxesUnwrapper[EmptyTuple] with
+    type Out = EmptyTuple
+
+  given recurse[H <: Label, AT <: Tuple](
+    using
+    next: AxesUnwrapper[AT] { 
+      type Out = UnwrapAxes[AT] 
+    }
+  ): AxesUnwrapper[Axis[H] *: AT] with
+    type Out = H *: next.Out
+
+trait AxesWrapper[T <: Tuple, AT <: AxesTuple[T]]:
+  type Out <: AT
+
+object AxesWrapper:
+  given empty: AxesWrapper[EmptyTuple, AxesTuple[EmptyTuple]] with
+    type Out = EmptyTuple
+  given recurse[H <: Label, T <: Tuple, AT <: AxesTuple[T]](
+    using
+    next: AxesWrapper[T, AT] { type Out = AT }
+  ): AxesWrapper[H *: T, Axis[H] *: AT] with
+    type Out = Axis[H] *: AT
 
 /** Contains basic helper functions for working with tuples (mostly on the type level)
   */
@@ -11,7 +86,7 @@ object TupleHelpers:
   type MapTo[T <: Tuple, A] = Tuple.Map[T, [ _ ] =>> A]
   opaque type StringTuple[T <: Tuple] = MapTo[T, String]
   
-  type Remove[A, B <: Tuple] <: Tuple = B match
+  type Remove[T <: Tuple, A] <: Tuple = T match
     case EmptyTuple       => EmptyTuple
     case A *: EmptyTuple  => EmptyTuple
     case A *: tail        => tail
@@ -27,7 +102,7 @@ object TupleHelpers:
     * ContractAxis removed from both
     */
   type ContractResult[T1 <: Tuple, T2 <: Tuple, ContractAxis] =
-    Tuple.Concat[Remove[ContractAxis, T1], Remove[ContractAxis, T2]]
+    Tuple.Concat[Remove[T1, ContractAxis], Remove[T2, ContractAxis]]
 
   type Replace[T <: Tuple, Needle, Replacement] = Tuple.Map[T, [ A ] =>>
     A match
@@ -47,9 +122,9 @@ object TupleHelpers:
       new NameOfImpl[EmptyTuple](Nil)
 
     // lift ValueOf of to NameOf
-    given [head] (using
-        v: ValueOf[head],
-    ): NameOf[head] = new NameOfImpl[head](List(v.value.toString))
+    given lift[A] (using
+        v: ValueOf[A],
+    ): NameOf[A] = new NameOfImpl[A](List(v.value.toString))
 
     // Stack a tuple to group of leaves
     given [A, B](using  a: NameOf[A], b: NameOf[B]): NameOf[(A, B)] = new NameOfImpl[(A, B)](a.tree ++ b.tree)
@@ -67,60 +142,47 @@ object TupleHelpers:
       v.value.toString :: t.tree
     )
 
+    def removerNameOf[T <: Tuple : NameOf, A : ValueOf](
+      remover: Remover[T, A],
+    ): NameOf[remover.Out] = NameOfImpl[remover.Out](
+      summon[NameOf[T]].tree.filterNot(_ == summon[ValueOf[A]].value.toString)
+    )
+
+    def removerAllNameOf[T <: Tuple : NameOf, ToRemove <: Tuple : NameOf](
+      remover: RemoverAll[T, ToRemove],
+    ): NameOf[remover.Out] = 
+      val namesToRemove = summon[NameOf[ToRemove]].tree.toSet
+      NameOfImpl[remover.Out](
+        summon[NameOf[T]].tree.filterNot(namesToRemove.contains)
+      )
+
     object ForConcat:
-      given concatNames[V, A <: Tuple, B <: Tuple](using
-        namesA: NameOf[A],
-        namesB: NameOf[B]
-      ): NameOf[Tuple.Concat[A, B]] =
-        new NameOfImpl[Tuple.Concat[A, B]](namesA.tree ++ namesB.tree)
 
-    object ForRemove:
-      given derivedRemoveNames[V, A, T <: Tuple](using 
-        base: NameOf[T], 
-        idx: AxisIndex[A, T]
-      ): NameOf[TupleHelpers.Remove[A, T]] = 
-        new NameOfImpl(base.tree.patch(idx.value, Nil, 1))
+      given [T1 <: Tuple, T2 <: Tuple](
+        using
+        n1: NameOf[T1],
+        n2: NameOf[T2],
+      ): NameOf[Tuple.Concat[T1, T2]] =
+        new NameOfImpl(n1.tree ++ n2.tree)
 
-      given derivedRemoveTwoNames[V, A, B, From <: Tuple](using
+    object ForRemoveAll:
+      import scala.annotation.tailrec
+
+      @tailrec
+      private def removeAllNames(names: List[String], indices: List[Int], offset: Int = 0): List[String] =
+        indices match
+          case Nil => names
+          case head :: tail =>
+            val adjustedIndex = head - offset
+            removeAllNames(names.patch(adjustedIndex, Nil, 1), tail, offset + 1)
+
+      given derivedRemoveAllNames[ToRemove <: Tuple, From <: Tuple](using
         base: NameOf[From],
-        idx1: AxisIndex[A, From],
-        idx2: AxisIndex[B, From],
-      ): NameOf[TupleHelpers.Remove[A, TupleHelpers.Remove[B, From]]] =
+        indices: AxisIndices[ToRemove, From],
+      ): NameOf[TupleHelpers.RemoveAll[ToRemove, From]] =
         new NameOfImpl(
-          base.tree
-            .patch(idx2.value, Nil, 1)
-            .patch(if idx1.value < idx2.value then idx1.value else idx1.value - 1, Nil, 1)
+          removeAllNames(base.tree, indices.values.sorted)
         )
-
-      given derivedRemoveThreeNames[V, A, B, C, From <: Tuple](using
-        base: NameOf[From],
-        idx1: AxisIndex[A, From],
-        idx2: AxisIndex[B, From],
-        idx3: AxisIndex[C, From],
-      ): NameOf[TupleHelpers.Remove[A, TupleHelpers.Remove[B, TupleHelpers.Remove[C, From]]]] =
-        new NameOfImpl(
-          base.tree
-            .patch(idx3.value, Nil, 1)
-            .patch(if idx2.value < idx3.value then idx2.value else idx2.value - 1, Nil, 1)
-            .patch(
-              if idx1.value < idx2.value && idx1.value < idx3.value then idx1.value
-              else if (idx1.value > idx2.value && idx1.value < idx3.value) || (idx1.value < idx2.value && idx1.value > idx3.value) then idx1.value - 1
-              else idx1.value - 2
-            , Nil, 1)
-        )
-
-    object ForContractResult:
-      export ForConcat.concatNames
-      export ForRemove.derivedRemoveNames
-
-  type TupleFlat[T <: Tuple] <: Tuple = T match
-    case EmptyTuple => EmptyTuple
-    case (h *: t) *: tail => 
-      Tuple.Concat[TupleFlat[h *: t], TupleFlat[tail]]
-    case EmptyTuple *: tail => 
-      TupleFlat[tail]
-    case h *: tail => 
-      h *: TupleFlat[tail]
 
   type UnwrapAxes[T <: Tuple] <: Tuple = T match
     case EmptyTuple => EmptyTuple
@@ -141,3 +203,33 @@ object TupleHelpers:
       def extract(t: (Axis[L], Int) *: Tail) =
         val (_, size) = t.head
         Map(labelValue.value.toString -> size) ++ tailExtractor.extract(t.tail)
+
+
+  import shapeful.Label
+  import scala.compiletime.constValue
+
+  // Create type class ValuesOf for Tuple that ensures ValueOf is available for each element
+  trait ValuesOf[T <: Tuple]:
+    def values: List[String]
+  object ValuesOf:
+    given ValuesOf[EmptyTuple] with
+      def values = Nil
+    given [H <: Label : ValueOf, Tail <: Tuple](using tailValues: ValuesOf[Tail]): ValuesOf[H *: Tail] with
+      def values = summon[ValueOf[H]].value.toString :: tailValues.values
+  
+    type WrapAxes[T <: Tuple] <: Tuple = T match 
+      case EmptyTuple       => EmptyTuple
+      case head *: tail     => Axis[head] *: WrapAxes[tail]
+
+    trait AxesFactory[T <: Tuple]:
+      def apply(): WrapAxes[T]
+
+    object AxesFactory:
+      given axesFactoryEmpty: AxesFactory[EmptyTuple] with
+        def apply(): EmptyTuple = EmptyTuple
+
+      given [H <: Label : ValueOf, Tail <: Tuple](using tailFactory: AxesFactory[Tail]): AxesFactory[H *: Tail] with
+        def apply(): Axis[H] *: WrapAxes[Tail] = 
+          val headAxis = Axis[H] 
+          val tailAxes = tailFactory.apply()
+          headAxis *: tailAxes
