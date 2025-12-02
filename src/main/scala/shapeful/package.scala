@@ -3,7 +3,7 @@ package object shapeful:
   import tensor.*
   import scala.compiletime.ops.string.+
 
-  type Label = Singleton | Tuple
+  type Label = Singleton
 
   object StringMath:
     infix type *[A <: String, B <: String] = A + "*" + B

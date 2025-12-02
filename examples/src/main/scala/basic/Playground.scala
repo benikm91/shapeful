@@ -282,6 +282,50 @@ def main(args: Array[String]): Unit =
     println(output4.shape)
   }
   {
+    println("Ravel")
+    val res = Tensor.ones(Shape(
+      Axis["A"] -> 2,
+      Axis["B"] -> 3,
+      Axis["C"] -> 4,
+    )).ravel
+    println(res.shape)
+  }
+  {
+    println("swapaxes")
+    val res = Tensor.ones(Shape(
+      Axis["A"] -> 2,
+      Axis["B"] -> 3,
+      Axis["C"] -> 4,
+    )).swap(Axis["A"], Axis["C"])
+    println(res.shape)
+  }
+  {
+    println("appendAxis / prependAxis")
+    val res = Tensor.ones(Shape(
+      Axis["A"] -> 2,
+      Axis["B"] -> 3,
+      Axis["C"] -> 4,
+    )).appendAxis(Axis["D"])
+    println(res.shape)
+    val res2 = Tensor.ones(Shape(
+      Axis["A"] -> 2,
+      Axis["B"] -> 3,
+      Axis["C"] -> 4,
+    )).prependAxis(Axis["D"])
+    println(res2.shape)
+  }
+  {
+    println("squeeze")
+    val res = Tensor.ones(Shape(
+      Axis["A"] -> 1,
+      Axis["B"] -> 3,
+      Axis["C"] -> 1,
+    )).squeeze(Axis["A"])
+    println(res.shape)
+    val res2 = res.squeeze(Axis["C"])
+    println(res2.shape)
+  }
+  {
     println("Slice")
     val res = Tensor.ones(Shape(
       Axis["A"] -> 2,
@@ -363,4 +407,21 @@ def main(args: Array[String]): Unit =
       case (xi, yi, zi) => xi.sum + yi.sum + zi.sum 
     }
     println(res.shape)  
+  }
+  {
+    println("TensorWhere tests")
+    val x = Tensor.ones(Shape(
+      Axis["A"] -> 2,
+      Axis["B"] -> 3,
+    ))
+    val y = Tensor.zeros(Shape(
+      Axis["A"] -> 2,
+      Axis["B"] -> 3,
+    ))
+    val condition = Tensor.zeros(Shape(
+      Axis["A"] -> 2,
+      Axis["B"] -> 3,
+    )).asType(DType.Bool)
+    val res = where(condition, x, y)
+    println(res.shape)
   }

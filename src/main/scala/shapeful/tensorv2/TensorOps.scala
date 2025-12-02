@@ -290,6 +290,105 @@ object TensorOps:
         evSameSize: Tuple.Size[newT] =:= Tuple.Size[T],
       ): Tensor[UnwrapAxes[newT]] = Tensor[UnwrapAxes[newT]](tensor.jaxValue)
   
+      def swap[L1 <: Label : ValueOf, L2 <: Label : ValueOf](
+        axis1: Axis[L1],
+        axis2: Axis[L2],
+      )(using
+        axisIndex1: AxisIndex[T, L1],
+        axisIndex2: AxisIndex[T, L2],
+        axesSwapper: AxesSwapper[T, L1, L2],
+      ): Tensor[axesSwapper.Out] =
+        given nameOf: NameOf[axesSwapper.Out] with
+          def tree = 
+            val originalNames = summon[NameOf[T]].tree
+            val ax1Name = valueOf[L1].toString
+            val ax2Name = valueOf[L2].toString
+            originalNames.map {
+              case n if n == ax1Name => ax2Name
+              case n if n == ax2Name => ax1Name
+              case n => n
+            }
+        val ax1 = axisIndex1.value
+        val ax2 = axisIndex2.value
+        Tensor(Jax.jnp.swapaxes(tensor.jaxValue, ax1, ax2))
+
+      def ravel: Tensor1[JoinNames[T]] = 
+        given nameOf: NameOf[Tuple1[JoinNames[T]]] with
+          def tree = List(summon[NameOf[T]].tree.mkString("*"))
+        Tensor(Jax.jnp.ravel(tensor.jaxValue))
+
+      def appendAxis[L <: Label : ValueOf](axis: Axis[L]): Tensor[Tuple.Concat[T, Tuple1[L]]] =
+        import NameOf.ForConcat.given
+        import me.shadaj.scalapy.py.SeqConverters
+        val newShape = tensor.shape.dimensions :+ 1
+        Tensor(Jax.jnp.reshape(tensor.jaxValue, newShape.toPythonProxy))
+
+      def prependAxis[L <: Label : ValueOf](axis: Axis[L]): Tensor[Tuple.Concat[Tuple1[L], T]] =
+        import NameOf.ForConcat.given
+        import me.shadaj.scalapy.py.SeqConverters
+        val newShape = 1 +: tensor.shape.dimensions
+        Tensor(Jax.jnp.reshape(tensor.jaxValue, newShape.toPythonProxy))
+
+      def squeeze[L <: Label](axis: Axis[L])(
+        using 
+        remover: Remover[T, L],
+        axisIndex: AxisIndex[T, L],
+        nameOf: NameOf[remover.Out],
+      ): Tensor[remover.Out] =
+        import me.shadaj.scalapy.py.SeqConverters
+        require(
+          tensor.shape.dimensions(axisIndex.value) == 1, 
+          s"Cannot squeeze axis ${axis} of size ${tensor.shape.dimensions(axisIndex.value)}"
+        )
+        Tensor(Jax.jnp.squeeze(tensor.jaxValue, axis = axisIndex.value))
+
+    trait AxesSwapper[T <: Tuple, L1 <: Label, L2 <: Label]:
+      type Out <: Tuple
+
+    object AxesSwapper:
+      given empty[L1 <: Label, L2 <: Label]: AxesSwapper[EmptyTuple, L1, L2] with
+        type Out = EmptyTuple
+
+      given matchL1[Tail <: Tuple, L1 <: Label, L2 <: Label](using
+        next: AxesSwapper[Tail, L1, L2]
+      ): AxesSwapper[L1 *: Tail, L1, L2] with
+        type Out = L2 *: next.Out
+
+      given matchL2[Tail <: Tuple, L1 <: Label, L2 <: Label](using
+        next: AxesSwapper[Tail, L1, L2]
+      ): AxesSwapper[L2 *: Tail, L1, L2] with
+        type Out = L1 *: next.Out
+
+      given noMatch[Head <: Label, Tail <: Tuple, L1 <: Label, L2 <: Label](using
+        next: AxesSwapper[Tail, L1, L2]
+      ): AxesSwapper[Head *: Tail, L1, L2] with
+        type Out = Head *: next.Out
+
+    type TupleReduce[T <: Tuple, Op[_ <: String, _ <: String]] = T match
+      case EmptyTuple => ""
+      case h *: EmptyTuple => h
+      case h *: t => Op[h, TupleReduce[t, Op]]
+
+    type JoinNames[T <: Tuple] = TupleReduce[T, shapeful.StringMath.*]
+
+    trait NamesReducer[T <: Tuple]:
+      type Out <: String
+      def value: Out
+
+    object NamesReducer:
+      import scala.compiletime.ops.string.+
+
+      given base[H <: String](using v: ValueOf[H]): NamesReducer[H *: EmptyTuple] with
+        type Out = H
+        def value = v.value
+
+      given step[H <: String, T <: Tuple](using 
+        v: ValueOf[H],
+        tailOp: NamesReducer[T]
+      ): NamesReducer[H *: T] with
+        type Out = (H + "*" + tailOp.Out)
+        def value = (v.value + "*" + tailOp.value).asInstanceOf[Out]
+
   end Structural
 
   // -----------------------------------------------------------
@@ -318,6 +417,7 @@ object TensorOps:
         Tensor(Jax.jax_helper.vmap(fpy, vmapAxisIndex.value)(t.jaxValue))
     
     export ZipVmap.zipvmap
+    export TensorWhere.where
 
   end Functional
 
@@ -383,7 +483,6 @@ object StatisticOps:
     def std: Tensor0 = Tensor0(Jax.jnp.std(t.jaxValue))
 
 end StatisticOps
-
 
 private object ZipVmap:
 
@@ -471,3 +570,12 @@ private object ZipVmap:
         f: TensorsOf[zipper.SlicedShapes] => Tensor[OutShape]
     ): Tensor[L *: OutShape] = 
         zip(axis)(tensors).vmap(f)
+
+object TensorWhere:
+
+  def where[T <: Tuple : NameOf](
+    condition: Tensor[T],
+    x: Tensor[T],
+    y: Tensor[T]
+  ): Tensor[T] =
+    Tensor(Jax.jnp.where(condition.jaxValue, x.jaxValue, y.jaxValue))

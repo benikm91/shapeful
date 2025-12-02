@@ -89,10 +89,10 @@ object Tensor:
   type IndicesOf[T <: Tuple] = Tuple.Map[T, [ _ ] =>> Int]
 
   type Tensor0 = Tensor[EmptyTuple]
-  type Tensor1[L <: Label] = Tensor[Tuple1[L]]
-  type Tensor2[L1 <: Label, L2 <: Label] = Tensor[(L1, L2)]
-  type Tensor3[L1 <: Label, L2 <: Label, L3 <: Label] = Tensor[(L1, L2, L3)]
-  type Tensor4[L1 <: Label, L2 <: Label, L3 <: Label, L4 <: Label] = Tensor[(L1, L2, L3, L4)]
+  type Tensor1[L] = Tensor[Tuple1[L]]
+  type Tensor2[L1, L2] = Tensor[(L1, L2)]
+  type Tensor3[L1, L2, L3] = Tensor[(L1, L2, L3)]
+  type Tensor4[L1, L2, L3, L4] = Tensor[(L1, L2, L3, L4)]
 
   def apply[T <: Tuple : NameOf](shape: Shape[T], values: ArraySeq[Float], dtype: DType = DType.Float32, device: Device = Device.default): Tensor[T] =
     require(values.length == shape.size, s"Values length ${values.length} does not match shape size ${shape.size}")
