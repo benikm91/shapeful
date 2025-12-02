@@ -293,15 +293,23 @@ def main(args: Array[String]): Unit =
     val res2 = Tensor.ones(Shape(
       Axis["A"] -> 2,
       Axis["B"] -> 3,
+    )).slice(
+      Axis["B"] -> (0 to 1)
+    )
+    println(res2.shape)
+    val res3 = Tensor.ones(Shape(
+      Axis["A"] -> 2,
+      Axis["B"] -> 3,
       Axis["C"] -> 4,
       Axis["D"] -> 5,
     )).slice((
       Axis["B"] -> 2,
       Axis["C"] -> 3,
     ))
-    println(res2.shape)
+    println(res3.shape)
   }
-  {
+  { 
+    println("zipvmap tests")
     import shapeful.Label
     type Batch = "Batch"
     type Asset = "Asset"
@@ -327,35 +335,32 @@ def main(args: Array[String]): Unit =
       Axis[Batch] -> 6,
     ))
 
-    case class ZipResult[L <: Label : ValueOf, T1 <: Tuple : NameOf, T2 <: Tuple : NameOf](
-      t1: Tensor[T1],
-      t2: Tensor[T2],
-    ):
-      def vmap[OutShape <: Tuple : NameOf](
-        using
-        remover1: Remover[T1, L],
-        remover2: Remover[T2, L],
-      )(f: (Tensor[remover1.Out], Tensor[remover2.Out]) => Tensor[OutShape])(
-        axis: Axis[L],
-      )(
-        using 
-        axisIndex1: AxisIndex[T1, L],
-        axisIndex2: AxisIndex[T2, L],
-      ): Tensor[L *: OutShape] = 
-        val dimSize = t1.shape.dimensions(axisIndex1.value)
-        val res = (0 until dimSize).toList.map { i =>
-          val slice1 = t1.slice(axis -> i)
-          println(slice1.shape)
-          val slice2 = t2.slice(axis -> i)
-          f(slice1, slice2)
-        }
-        Tensor.stack(res, axis)
-
-    def zip[L <: Label : ValueOf, T1 <: Tuple : NameOf, T2 <: Tuple : NameOf](zipAxis: Axis[L])(
-      t1: Tensor[T1],
-      t2: Tensor[T2],
-    ): ZipResult[L, T1, T2] = ZipResult(t1, t2)
-
-    val res = zip(Axis[Batch])(x, y).vmap((xi, yi) => xi.sum + yi.sum)(Axis[Batch])
+    val res = zipvmap(Axis[Batch])(x, y) {
+      case (xi, yi) => xi.sum + yi.sum
+    }
     println(res.shape)
+
+    val res2 = zipvmap(Axis[Batch])(x, y, z) {
+      (xi, yi, zi) => xi.sum + yi.sum + zi.sum
+    }
+    println(res2.shape)
+  }
+  {
+    import shapeful.Label
+    import shapeful.tensorv2.* // Assuming imports
+
+    type Batch = "Batch"
+    type Asset = "Asset"
+    type Region = "Region"
+    type Sector = "Sector"
+    type Risk = "Risk"
+
+    val x = Tensor.ones(Shape(Axis[Batch] -> 6, Axis[Asset] -> 3, Axis[Region] -> 5))
+    val y = Tensor.ones(Shape(Axis[Region] -> 5, Axis[Batch] -> 6, Axis[Sector] -> 4))
+    val z = Tensor.ones(Shape(Axis[Sector] -> 4, Axis[Risk] -> 5, Axis[Batch] -> 6))
+
+    val res = zipvmap(Axis[Batch])((x, y, z)) { 
+      case (xi, yi, zi) => xi.sum + yi.sum + zi.sum 
+    }
+    println(res.shape)  
   }

@@ -166,28 +166,47 @@ object TensorOps:
   // -----------------------------------------------------------
   object Structural:
     
-    type ExtractLabel[X] = X match
-        case (Axis[l], Int) => l
+    type SliceIndex = Int | Seq[Int]
 
+    type ExtractLabel[X] = X match
+        case (Axis[l], SliceIndex) => l
     type ExtractLabels[Inputs <: Tuple] = Tuple.Map[Inputs, ExtractLabel]
 
+    trait SliceLabelExtractor[Inputs <: Tuple, Out <: Tuple]
+
+    object SliceLabelExtractor:
+
+      given empty: SliceLabelExtractor[EmptyTuple, EmptyTuple] = 
+        new SliceLabelExtractor[EmptyTuple, EmptyTuple] {}
+
+      given consInt[L <: Label, Tail <: Tuple, TailOut <: Tuple](using
+        tailExt: SliceLabelExtractor[Tail, TailOut]
+      ): SliceLabelExtractor[(Axis[L], Int) *: Tail, L *: TailOut] = 
+        new SliceLabelExtractor[(Axis[L], Int) *: Tail, L *: TailOut] {}
+
+      given consSeq[L <: Label, SeqT <: Seq[Int], Tail <: Tuple, TailOut <: Tuple](using
+        tailExt: SliceLabelExtractor[Tail, TailOut]
+      ): SliceLabelExtractor[(Axis[L], SeqT) *: Tail, TailOut] = 
+        new SliceLabelExtractor[(Axis[L], SeqT) *: Tail, TailOut] {}
+    
     extension [T <: Tuple : NameOf](tensor: Tensor[T])
-      
-      def slice[L <: Label](
-        axisWithSliceIndex: (Axis[L], Int),
+      def slice[L <: Label, I, LabelsToRemove <: Tuple](
+        axisWithSliceIndex: (Axis[L], I),
       )(using 
-        remover: Remover[T, L],
-        axisIndex: AxisIndex[T, L],
-        namesOf: NameOf[L *: EmptyTuple],
-      ): Tensor[remover.Out] = slice(Tuple1(axisWithSliceIndex))
+        sliceExtractor: SliceLabelExtractor[Tuple1[(Axis[L], I)], LabelsToRemove],
+        remover: RemoverAll[T, LabelsToRemove],
+        axesIndices: AxisIndices[T, ExtractLabels[Tuple1[(Axis[L], I)]]],
+        namesOf: NameOf[LabelsToRemove],
+      ): Tensor[remover.Out] = 
+        slice(Tuple1(axisWithSliceIndex))
 
-
-      def slice[Inputs <: Tuple](
+      def slice[Inputs <: Tuple, LabelsToRemove <: Tuple](
         axesWithSliceIndices: Inputs,
       )(using 
-        remover: RemoverAll[T, ExtractLabels[Inputs]],
+        sliceExtractor: SliceLabelExtractor[Inputs, LabelsToRemove],
+        remover: RemoverAll[T, LabelsToRemove],
         axesIndices: AxisIndices[T, ExtractLabels[Inputs]],
-        namesOf: NameOf[ExtractLabels[Inputs]],
+        namesOf: NameOf[LabelsToRemove],
       ): Tensor[remover.Out] =
         import me.shadaj.scalapy.py
         import me.shadaj.scalapy.py.SeqConverters
@@ -199,13 +218,22 @@ object TensorOps:
         val indicesBuffer = collection.mutable.ArrayBuffer.fill[py.Any](rank)(Colon)
 
         val targetDims: List[Int] = axesIndices.values
-        val inputs = axesWithSliceIndices.toList.asInstanceOf[List[(Any, Int)]]
+        val inputs = axesWithSliceIndices.toList.asInstanceOf[List[(Any, SliceIndex)]]
 
         targetDims.zip(inputs).foreach { 
-            case (dimIndex, (axisObj, sliceIndex)) =>
-                val dimSize = tensor.shape.dimensions(dimIndex)
+          case (dimIndex, (axisObj, sliceIndex)) =>
+            val dimSize = tensor.shape.dimensions(dimIndex)
+            sliceIndex match {
+              case sliceSeq: Seq[Int] => 
+                val pyIndices = sliceSeq.map { idx =>
+                  require(idx >= 0 && idx < dimSize, s"Slice index $idx out of bounds for dimension $dimIndex (size $dimSize)")
+                  py.Any.from(idx)
+                }.toPythonProxy
+                indicesBuffer(dimIndex) = pyIndices
+              case sliceIndex: Int =>
                 require(sliceIndex >= 0 && sliceIndex < dimSize, s"Slice index $sliceIndex out of bounds for dimension $dimIndex (size $dimSize)")
                 indicesBuffer(dimIndex) = py.Any.from(sliceIndex)
+            }
         }
 
         val indexTuple = Jax.Dynamic.global.tuple(indicesBuffer.toSeq.toPythonProxy)
@@ -269,6 +297,7 @@ object TensorOps:
   // Lifting functions over axes
   // -----------------------------------------------------------
   object Functional:
+
     extension [T <: Tuple : NameOf](t: Tensor[T])
       
       def vmap[VmapAxis <: Label : ValueOf, OuterShape <: Tuple : NameOf](
@@ -287,6 +316,8 @@ object TensorOps:
             result.jaxValue
 
         Tensor(Jax.jax_helper.vmap(fpy, vmapAxisIndex.value)(t.jaxValue))
+    
+    export ZipVmap.zipvmap
 
   end Functional
 
@@ -352,3 +383,91 @@ object StatisticOps:
     def std: Tensor0 = Tensor0(Jax.jnp.std(t.jaxValue))
 
 end StatisticOps
+
+
+private object ZipVmap:
+
+    import TensorOps.Structural.slice
+
+    type TensorsOf[Shapes <: Tuple] <: Tuple = Shapes match
+      case EmptyTuple => EmptyTuple
+      case head *: tail => head match
+        case Tuple => Tensor[head] *: TensorsOf[tail]
+
+    type ExtractShape[T] = T match
+      case Tensor[s] => s
+
+    type ShapesOf[Tensors <: Tuple] = Tuple.Map[Tensors, ExtractShape]
+
+    trait Zipper[Shapes <: Tuple, L <: Label]:
+      type SlicedShapes <: Tuple
+      def dimSize(tensors: TensorsOf[Shapes], axis: Axis[L]): Int
+      def sliceAll(tensors: TensorsOf[Shapes], axis: Axis[L], idx: Int): TensorsOf[SlicedShapes]
+
+    object Zipper:
+      type Aux[Shapes <: Tuple, L <: Label, O <: Tuple] = Zipper[Shapes, L] { type SlicedShapes = O }
+
+      given empty[L <: Label]: Zipper.Aux[EmptyTuple, L, EmptyTuple] = new Zipper[EmptyTuple, L]:
+        type SlicedShapes = EmptyTuple
+        def dimSize(t: EmptyTuple, axis: Axis[L]) = 0
+        def sliceAll(t: EmptyTuple, axis: Axis[L], idx: Int) = EmptyTuple
+
+      given cons[HeadShape <: Tuple : NameOf, TailShapes <: Tuple, L <: Label : ValueOf, TailSliced <: Tuple](
+        using
+        remover: Remover[HeadShape, L],
+        axisIndex: AxisIndex[HeadShape, L],
+        tailZipper: Zipper.Aux[TailShapes, L, TailSliced] 
+      ): Zipper.Aux[HeadShape *: TailShapes, L, remover.Out *: TailSliced] = 
+        new Zipper[HeadShape *: TailShapes, L]:
+          type SlicedShapes = remover.Out *: TailSliced
+
+          def dimSize(tensors: TensorsOf[HeadShape *: TailShapes], axis: Axis[L]): Int =
+            val head = tensors.asInstanceOf[Tensor[HeadShape] *: Tuple].head
+            head.shape.dimensions(axisIndex.value)
+
+          def sliceAll(tensors: TensorsOf[HeadShape *: TailShapes], axis: Axis[L], idx: Int): TensorsOf[SlicedShapes] =
+            val tuple = tensors.asInstanceOf[Tensor[HeadShape] *: TensorsOf[TailShapes]]
+            val slicedHead = tuple.head.slice(axis -> idx)
+            val slicedTail = tailZipper.sliceAll(tuple.tail, axis, idx)
+            (slicedHead *: slicedTail).asInstanceOf[TensorsOf[SlicedShapes]]
+
+    case class ZipResult[L <: Label : ValueOf, Shapes <: Tuple](
+      axis: Axis[L],
+      tensors: TensorsOf[Shapes]
+    ):
+      def vmap[OutShape <: Tuple : NameOf](using
+        zipper: Zipper[Shapes, L]
+      )(
+        f: TensorsOf[zipper.SlicedShapes] => Tensor[OutShape]
+      ): Tensor[L *: OutShape] =
+
+        val size = zipper.dimSize(tensors, axis)
+
+        val results = (0 until size).map { i =>
+          val slicedTuple = zipper.sliceAll(tensors, axis, i)
+          f(slicedTuple)
+        }
+
+        Tensor.stack(results, axis)
+
+    def zip[L <: Label : ValueOf, Inputs <: Tuple](
+      axis: Axis[L]
+    )(
+      tensors: Inputs
+    ): ZipResult[L, ShapesOf[Inputs]] = 
+      ZipResult(axis, tensors.asInstanceOf[TensorsOf[ShapesOf[Inputs]]])
+
+    def zipvmap[
+        L <: Label : ValueOf, 
+        Inputs <: Tuple, 
+        OutShape <: Tuple : NameOf, 
+    ](
+        axis: Axis[L]
+    )(
+        tensors: Inputs
+    )(using 
+        zipper: Zipper[ShapesOf[Inputs], L]
+    )(
+        f: TensorsOf[zipper.SlicedShapes] => Tensor[OutShape]
+    ): Tensor[L *: OutShape] = 
+        zip(axis)(tensors).vmap(f)
