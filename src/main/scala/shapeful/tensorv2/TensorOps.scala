@@ -342,6 +342,11 @@ object TensorOps:
         )
         Tensor(Jax.jnp.squeeze(tensor.jaxValue, axis = axisIndex.value))
 
+    extension [L1 : ValueOf, L2](tensor: Tensor2[L1, L2])
+      // TODO is Tensor1[L1] the correct return type here?
+      def diagonal: Tensor1[L1] =
+        Tensor[Tuple1[L1]](Jax.jnp.diagonal(tensor.jaxValue))
+
     trait AxesSwapper[T <: Tuple, L1 <: Label, L2 <: Label]:
       type Out <: Tuple
 

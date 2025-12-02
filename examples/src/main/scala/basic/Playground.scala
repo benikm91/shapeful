@@ -425,3 +425,12 @@ def main(args: Array[String]): Unit =
     val res = where(condition, x, y)
     println(res.shape)
   }
+  {
+    println("Diag")
+    val x = Tensor.ones(Shape(
+      Axis["A"] -> 2,
+      Axis["B"] -> 3,
+    ))
+    val res = x.diagonal
+    println(res.shape)
+  }
