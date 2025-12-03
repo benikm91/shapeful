@@ -434,3 +434,13 @@ def main(args: Array[String]): Unit =
     val res = x.diagonal
     println(res.shape)
   }
+  {
+    import shapeful.tensorv2.Tensor0
+    println("Diag")
+    val x = Tensor.ones(Shape(
+      Axis["A"] -> 2,
+      Axis["B"] -> 3,
+    )).at(1, 2)
+    println(x.set(Tensor0(42)))
+    println(x.get)
+  }

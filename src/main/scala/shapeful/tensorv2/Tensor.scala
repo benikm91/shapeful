@@ -47,8 +47,7 @@ case class Tensor[T <: Tuple : NameOf] private[tensorv2] (
   def relabel[From <: Label, To <: Label](from: Axis[From], to: Axis[To]): Tensor[TupleHelpers.Replace[T, From, To]] =
     this.asInstanceOf[Tensor[TupleHelpers.Replace[T, From, To]]]
 
-  def at(idx: Tensor.IndicesOf[T]): TensorIndexer[T] =
-    new TensorIndexer(this, idx)
+  def at(idx: Tensor.IndicesOf[T]): TensorIndexer[T] = TensorIndexer(this, idx)
 
   def tensorEquals(other: Tensor[?]): Boolean =
     Jax.jnp.array_equal(this.jaxValue, other.jaxValue).item().as[Boolean]
@@ -210,22 +209,15 @@ object Tensor3:
 
 class TensorIndexer[T <: Tuple : NameOf](
     private val tensor: Tensor[T],
-    private val index: Tensor.IndicesOf[T]
+    index: Tensor.IndicesOf[T]
 ):
-
   import Tensor.Tensor0
 
   val idxAsSeq: Seq[Int] = index.productIterator.toSeq.asInstanceOf[Seq[Int]]
 
-  def get: Tensor0 =
+  def atHelper: Jax.PyDynamic =
     val indexTuple = Jax.Dynamic.global.tuple(idxAsSeq.toPythonProxy)
-    val atHelper = tensor.jaxValue.at.__getitem__(indexTuple)
-    val jaxScalar = atHelper.get()
-    new Tensor0(jaxScalar)
+    tensor.jaxValue.at.__getitem__(indexTuple)
 
-  def set(value: Tensor0): Tensor[T] =
-    val jaxValueToSet = value.jaxValue
-    val indexTuple = Jax.Dynamic.global.tuple(idxAsSeq.toPythonProxy)
-    val atHelper = tensor.jaxValue.at.__getitem__(indexTuple)
-    val updatedJaxValue = atHelper.set(jaxValueToSet)
-    new Tensor(updatedJaxValue)
+  def get: Tensor0 = Tensor0(atHelper.get())
+  def set(value: Tensor0): Tensor[T] = Tensor(atHelper.set(value.jaxValue))
