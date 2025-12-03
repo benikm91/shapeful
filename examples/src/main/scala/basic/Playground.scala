@@ -4,7 +4,6 @@ import shapeful.StringMath.*
 import shapeful.tensorv2.{Axis, Shape, Tensor1, Tensor2, Tensor, DType, Device}
 import scala.collection.compat.immutable.ArraySeq
 import shapeful.tensorv2.TensorOps.*
-import shapeful.tensorv2.StatisticOps.*
 import shapeful.tensorv2.TupleHelpers
 import shapeful.tensorv2.TupleHelpers.NameOf
 import shapeful.tensorv2.TupleHelpers.UnwrapAxes
@@ -14,7 +13,7 @@ import shapeful.tensorv2.TupleHelpers.ValuesOf.AxesFactory
 import shapeful.tensorv2.Remover
 import scala.collection.View.Zip
 
-def main(args: Array[String]): Unit =
+@main def playground(): Unit =
   println("TensorV2 Playground")
   {
     println("MatMul tests")
@@ -436,11 +435,24 @@ def main(args: Array[String]): Unit =
   }
   {
     import shapeful.tensorv2.Tensor0
-    println("Diag")
+    println("Set")
     val x = Tensor.ones(Shape(
       Axis["A"] -> 2,
       Axis["B"] -> 3,
-    )).at(1, 2)
-    println(x.set(Tensor0(42)))
-    println(x.get)
+    )).set((
+      Axis["A"] -> 1,
+      Axis["B"] -> 2,
+    ))(Tensor0(42))
+    println(x)
+    val v = Tensor1(
+      Axis["B"],
+      ArraySeq(100, 101, 102),
+    )
+    val x2 = Tensor.ones(Shape(
+      Axis["A"] -> 2,
+      Axis["B"] -> 3,
+    )).set(
+      Axis["A"] -> 1,
+    )(v)
+    println(x2)
   }

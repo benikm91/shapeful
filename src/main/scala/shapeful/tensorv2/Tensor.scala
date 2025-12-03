@@ -40,42 +40,8 @@ case class Tensor[T <: Tuple : NameOf] private[tensorv2] (
   def toDevice(newDevice: Device): Tensor[T] = 
     Tensor(jaxValue = Jax.device_put(jaxValue, newDevice.jaxDevice))
 
-  def reshape[NewT <: Tuple : NameOf](newShape: Shape[NewT]): Tensor[NewT] =
-    require(shape.size == newShape.size, "New shape must have the same number of elements")
-    Tensor(Jax.jnp.reshape(jaxValue, newShape.dimensions.toPythonProxy))
-
-  def relabel[From <: Label, To <: Label](from: Axis[From], to: Axis[To]): Tensor[TupleHelpers.Replace[T, From, To]] =
-    this.asInstanceOf[Tensor[TupleHelpers.Replace[T, From, To]]]
-
-  def at(idx: Tensor.IndicesOf[T]): TensorIndexer[T] = TensorIndexer(this, idx)
-
-  def tensorEquals(other: Tensor[?]): Boolean =
+  def equals(other: Tensor[T]): Boolean =
     Jax.jnp.array_equal(this.jaxValue, other.jaxValue).item().as[Boolean]
-
-  def ==(other: Tensor[?]): Boolean = tensorEquals(other)
-
-  def !=(other: Tensor[?]): Boolean = !(this == other)
-
-  def elementEquals[U <: Tuple](other: Tensor[U])(
-    using ev: Tuple.Size[T] =:= Tuple.Size[U]
-  ): Tensor[T] =
-    require(this.shape.dimensions == other.shape.dimensions, s"Shape mismatch: ${this.shape.dimensions} vs ${other.shape.dimensions}")
-    Tensor(jaxValue = Jax.jnp.equal(this.jaxValue, other.jaxValue))
-
-  def approxEquals[U <: Tuple](other: Tensor[U], tolerance: Float = 1e-6f)(
-    using ev: Tuple.Size[T] =:= Tuple.Size[U]
-  ): Boolean =
-    val result = Jax.jnp.allclose(
-      this.jaxValue,
-      other.jaxValue,
-      atol = tolerance,
-      rtol = tolerance
-    )
-    result.item().as[Boolean]
-
-  override def equals(obj: Any): Boolean = obj match
-    case other: Tensor[?] => this.tensorEquals(other)
-    case _                => false
 
   override def hashCode(): Int = jaxArray.tobytes().hashCode()
 
@@ -206,18 +172,3 @@ object Tensor3:
       values.flatten.flatten,
       dtype,
     )
-
-class TensorIndexer[T <: Tuple : NameOf](
-    private val tensor: Tensor[T],
-    index: Tensor.IndicesOf[T]
-):
-  import Tensor.Tensor0
-
-  val idxAsSeq: Seq[Int] = index.productIterator.toSeq.asInstanceOf[Seq[Int]]
-
-  def atHelper: Jax.PyDynamic =
-    val indexTuple = Jax.Dynamic.global.tuple(idxAsSeq.toPythonProxy)
-    tensor.jaxValue.at.__getitem__(indexTuple)
-
-  def get: Tensor0 = Tensor0(atHelper.get())
-  def set(value: Tensor0): Tensor[T] = Tensor(atHelper.set(value.jaxValue))

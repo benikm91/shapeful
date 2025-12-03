@@ -15,8 +15,11 @@ lazy val root = (project in file("."))
       "dev.scalapy" %% "scalapy-core" % "0.5.3",
       "org.scalameta" %% "munit" % "1.0.0" % Test
     ),
-    fork := true
+    fork := true,
+    mdocIn := file("docs"),
+    mdocOut := target.value / "mdoc"
   )
+  .enablePlugins(MdocPlugin)
 
 // Examples subproject
 lazy val examples = (project in file("examples"))
