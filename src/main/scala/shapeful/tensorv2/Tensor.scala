@@ -22,7 +22,7 @@ object Device:
     Device.CPU
   )
 
-case class Tensor[T <: Tuple : NameOf] private[tensorv2] (
+class Tensor[T <: Tuple : NameOf] private[tensorv2] (
   val jaxValue: Jax.PyDynamic,
 ):
 
@@ -52,6 +52,8 @@ case class Tensor[T <: Tuple : NameOf] private[tensorv2] (
 object Tensor:
 
   type IndicesOf[T <: Tuple] = Tuple.Map[T, [ _ ] =>> Int]
+
+  private[tensorv2] def apply[T <: Tuple : NameOf](jaxValue: Jax.PyDynamic): Tensor[T] = new Tensor[T](jaxValue)
 
   def fromPy[T <: Tuple : NameOf](jaxValue: Jax.PyDynamic): Tensor[T] = Tensor(jaxValue)
 

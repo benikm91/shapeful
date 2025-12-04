@@ -6,6 +6,7 @@ import shapeful.tensorv2.TensorOps.*
 import shapeful.autodiffv2.Autodiff
 import scala.collection.compat.immutable.ArraySeq
 import shapeful.autodiff.ToPyTree
+import shapeful.autodiff.TensorTree
 
 @main
 def autoDiffAPI(): Unit =
@@ -32,9 +33,7 @@ def autoDiffAPI(): Unit =
   {
     type ParamsTuple = (Tensor2["A", "B"], Tensor1["C"])
     def f(params: ParamsTuple): Tensor0 =
-      val x = params._1.sum + params._2.sum
-      println(("x", x.shape))
-      x
+      params._1.sum + params._2.sum
     val df = Autodiff.grad(f)
     val delta = df((
       Tensor2(Axis["A"], Axis["B"], ArraySeq(
@@ -44,6 +43,23 @@ def autoDiffAPI(): Unit =
       Tensor1(Axis["C"], ArraySeq.fill(5)(1.0f))
     ))
     println((delta._1.shape, delta._2.shape))
+  }
+  {
+    case class Params(
+      a: Tensor2["A", "B"], 
+      b: Tensor1["C"],
+    ) derives TensorTree
+    def f(params: Params): Tensor0 =
+      params.a.sum + params.b.sum
+    val df = Autodiff.grad(f)
+    val delta = df(Params(
+      Tensor2(Axis["A"], Axis["B"], ArraySeq(
+        ArraySeq.fill(5)(1.0f),
+        ArraySeq.fill(5)(1.0f),
+      )),
+      Tensor1(Axis["C"], ArraySeq.fill(5)(1.0f))
+    ))
+    println(delta)
   }
   {
     def f(x: Tensor1["A"]): Tensor1["A"] = x

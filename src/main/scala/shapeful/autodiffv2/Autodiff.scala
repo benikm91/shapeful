@@ -16,12 +16,12 @@ object Autodiff:
   type GradientTensorVsInput[In, OutShape <: Tuple] = In match
     case EmptyTuple => EmptyTuple
     case h *: t => GradientTensorVsInput[h, OutShape] *: GradientTensorVsInput[t, OutShape]
-    case Tensor[inS] => Tensor[Tuple.Concat[OutShape, inS]] 
+    case Tensor[inS] => Tensor[Tuple.Concat[OutShape, inS]]
 
   def grad[Input](f: Input => Tensor0)(using 
     inTree: ToPyTree[Input],
     outTree: ToPyTree[Tensor0],
-  ): Input => Gradient[Input, Tensor0] =
+  ): Input => Input =
 
     val fpy = (jxpr: py.Dynamic) =>
       val x = inTree.fromPyTree(jxpr)
@@ -32,7 +32,7 @@ object Autodiff:
     (params: Input) =>
       val xpy = inTree.toPyTree(params)
       val pygrad = gpy(xpy)
-      inTree.fromPyTree(pygrad).asInstanceOf[Gradient[Input, Tensor0]]
+      inTree.fromPyTree(pygrad).asInstanceOf[Input]
 
   def jacobian[In, Out](f: In => Out)(using 
     inTree: ToPyTree[In],
