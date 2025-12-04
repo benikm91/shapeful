@@ -11,7 +11,7 @@ final case class Shape[T <: Tuple : NameOf] @publicInBinary private (
   val dimensions: List[Int],
 ):
 
-  lazy val labels: List[String] = summon[NameOf[T]].tree
+  lazy val labels: List[String] = summon[NameOf[T]].names
 
   require(dimensions.size == labels.size, s"Dimensions and labels must have the same size but got ${dimensions.size} dims and ${labels.size} labels, overall shape: $this")
   require(dimensions.forall(_ > 0), "All dimensions must be positive")

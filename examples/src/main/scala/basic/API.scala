@@ -134,11 +134,17 @@ def main(args: Array[String]): Unit =
         Axis["D"],
     ))
     // einops.rearrange(ABCD, 'a b c d -> (b a) c d')
-    val resRearrangeABCDFlat = ABCD.rearrange((  // TODO make Tuple1 optional
-      Axis["B" * "A"],
-      Axis["C"],
-      Axis["D"],
-    ))
+    val resRearrangeABCDFlat = ABCD.rearrange(
+      ( Axis["B" * "A"], Axis["C"], Axis["D"] )
+    )
+    val resRearrangeABCDUnflatConst = resRearrangeABCDFlat.rearrange(
+      ( Axis["A"], Axis["B"], Axis["C"], Axis["D"] ),
+      ( Axis["A"] -> 2, Axis["B"] -> 3 )
+    )
+    val resRearrangeABCDUnflatDim = resRearrangeABCDFlat.rearrange(
+      ( Axis["A"], Axis["B"], Axis["C"], Axis["D"] ),
+      ( Axis["A"] -> ABCD.shape.dim(Axis["A"]), Axis["B"] -> ABCD.shape.dim(Axis["B"]) )
+    )
     /** AS - rename axes labels */
     // no JAX equivalent as axes are not named in JAX
     val resAsBA = AB.as[(Axis["X"], Axis["Y"])]

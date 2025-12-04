@@ -111,49 +111,42 @@ object TupleHelpers:
   ]
 
   trait NameOf[T]:
-    def tree: List[String]
+    def names: List[String]
 
-  class NameOfImpl[T](val tree: List[String]) extends NameOf[T]
+  class NameOfImpl[T](val names: List[String]) extends NameOf[T]
 
   object NameOf:
 
-    // empty case
-    given namesOfEmpty: NameOf[EmptyTuple] =
-      new NameOfImpl[EmptyTuple](Nil)
+    given namesOfEmpty: NameOf[EmptyTuple] = new NameOfImpl[EmptyTuple](Nil)
 
-    // lift ValueOf of to NameOf
-    given lift[A] (using
-        v: ValueOf[A],
-    ): NameOf[A] = new NameOfImpl[A](List(v.value.toString))
+    given lift[A] (using v: ValueOf[A]): NameOf[A] = new NameOfImpl[A](List(v.value.toString))
 
-    // Stack a tuple to group of leaves
-    given [A, B](using  a: NameOf[A], b: NameOf[B]): NameOf[(A, B)] = new NameOfImpl[(A, B)](a.tree ++ b.tree)
-    given [A, B, C](using  a: NameOf[A], b: NameOf[B], c: NameOf[C]): NameOf[(A, B, C)] = new NameOfImpl[(A, B, C)](a.tree ++ b.tree ++ c.tree)
-    given [A, B, C, D](using  a: NameOf[A], b: NameOf[B], c: NameOf[C], d: NameOf[D]): NameOf[(A, B, C, D)] = new NameOfImpl[(A, B, C, D)](a.tree ++ b.tree ++ c.tree ++ d.tree)
-    given [A, B, C, D, E](using  a: NameOf[A], b: NameOf[B], c: NameOf[C], d: NameOf[D], e: NameOf[E]): NameOf[(A, B, C, D, E)] = new NameOfImpl[(A, B, C, D, E)](a.tree ++ b.tree ++ c.tree ++ d.tree ++ e.tree)
-    given [A, B, C, D, E, F](using  a: NameOf[A], b: NameOf[B], c: NameOf[C], d: NameOf[D], e: NameOf[E], f: NameOf[F]): NameOf[(A, B, C, D, E, F)] = new NameOfImpl[(A, B, C, D, E, F)](a.tree ++ b.tree ++ c.tree ++ d.tree ++ e.tree ++ f.tree)  
+    given [A, B](using  a: NameOf[A], b: NameOf[B]): NameOf[(A, B)] = new NameOfImpl[(A, B)](a.names ++ b.names)
+    given [A, B, C](using  a: NameOf[A], b: NameOf[B], c: NameOf[C]): NameOf[(A, B, C)] = new NameOfImpl[(A, B, C)](a.names ++ b.names ++ c.names)
+    given [A, B, C, D](using  a: NameOf[A], b: NameOf[B], c: NameOf[C], d: NameOf[D]): NameOf[(A, B, C, D)] = new NameOfImpl[(A, B, C, D)](a.names ++ b.names ++ c.names ++ d.names)
+    given [A, B, C, D, E](using  a: NameOf[A], b: NameOf[B], c: NameOf[C], d: NameOf[D], e: NameOf[E]): NameOf[(A, B, C, D, E)] = new NameOfImpl[(A, B, C, D, E)](a.names ++ b.names ++ c.names ++ d.names ++ e.names)
+    given [A, B, C, D, E, F](using  a: NameOf[A], b: NameOf[B], c: NameOf[C], d: NameOf[D], e: NameOf[E], f: NameOf[F]): NameOf[(A, B, C, D, E, F)] = new NameOfImpl[(A, B, C, D, E, F)](a.names ++ b.names ++ c.names ++ d.names ++ e.names ++ f.names)  
     
-    // append a value to a tuple
     given [head, tail <: Tuple](
       using 
       v: ValueOf[head],
       t: NameOf[tail],
     ): NameOf[head *: tail] = new NameOfImpl[head *: tail](
-      v.value.toString :: t.tree
+      v.value.toString :: t.names
     )
 
     def removerNameOf[T <: Tuple : NameOf, A : ValueOf](
       remover: Remover[T, A],
     ): NameOf[remover.Out] = NameOfImpl[remover.Out](
-      summon[NameOf[T]].tree.filterNot(_ == summon[ValueOf[A]].value.toString)
+      summon[NameOf[T]].names.filterNot(_ == summon[ValueOf[A]].value.toString)
     )
 
     def removerAllNameOf[T <: Tuple : NameOf, ToRemove <: Tuple : NameOf](
       remover: RemoverAll[T, ToRemove],
     ): NameOf[remover.Out] = 
-      val namesToRemove = summon[NameOf[ToRemove]].tree.toSet
+      val namesToRemove = summon[NameOf[ToRemove]].names.toSet
       NameOfImpl[remover.Out](
-        summon[NameOf[T]].tree.filterNot(namesToRemove.contains)
+        summon[NameOf[T]].names.filterNot(namesToRemove.contains)
       )
 
     object ForConcat:
@@ -162,8 +155,7 @@ object TupleHelpers:
         using
         n1: NameOf[T1],
         n2: NameOf[T2],
-      ): NameOf[Tuple.Concat[T1, T2]] =
-        new NameOfImpl(n1.tree ++ n2.tree)
+      ): NameOf[Tuple.Concat[T1, T2]] = new NameOfImpl(n1.names ++ n2.names)
 
     object ForRemoveAll:
       import scala.annotation.tailrec
@@ -180,9 +172,7 @@ object TupleHelpers:
         base: NameOf[From],
         indices: AxisIndices[ToRemove, From],
       ): NameOf[TupleHelpers.RemoveAll[ToRemove, From]] =
-        new NameOfImpl(
-          removeAllNames(base.tree, indices.values.sorted)
-        )
+        new NameOfImpl(removeAllNames(base.names, indices.values.sorted))
 
   type UnwrapAxes[T <: Tuple] <: Tuple = T match
     case EmptyTuple => EmptyTuple
