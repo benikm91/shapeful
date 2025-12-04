@@ -5,7 +5,6 @@ import shapeful.jaxv2.Jax
 import shapeful.jaxv2.Einops
 import scala.annotation.targetName
 import scala.util.NotGiven
-import Tensor.{Tensor0, Tensor1, Tensor2}
 import shapeful.jax.Jax.PyDynamic
 import scala.annotation.implicitNotFound
 import TupleHelpers.{UnwrapAxes, RemoveAll}

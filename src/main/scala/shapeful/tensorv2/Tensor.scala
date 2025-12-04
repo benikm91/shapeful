@@ -53,11 +53,7 @@ object Tensor:
 
   type IndicesOf[T <: Tuple] = Tuple.Map[T, [ _ ] =>> Int]
 
-  type Tensor0 = Tensor[EmptyTuple]
-  type Tensor1[L] = Tensor[Tuple1[L]]
-  type Tensor2[L1, L2] = Tensor[(L1, L2)]
-  type Tensor3[L1, L2, L3] = Tensor[(L1, L2, L3)]
-  type Tensor4[L1, L2, L3, L4] = Tensor[(L1, L2, L3, L4)]
+  def fromPy[T <: Tuple : NameOf](jaxValue: Jax.PyDynamic): Tensor[T] = Tensor(jaxValue)
 
   def apply[T <: Tuple : NameOf](shape: Shape[T], values: ArraySeq[Float], dtype: DType = DType.Float32, device: Device = Device.default): Tensor[T] =
     require(values.length == shape.size, s"Values length ${values.length} does not match shape size ${shape.size}")
@@ -86,8 +82,13 @@ object Tensor:
     Tensor(Jax.jnp.ones(shape.dimensions.toPythonProxy, dtype = dtype.jaxType))
 
 
+type Tensor0 = Tensor[EmptyTuple]
+type Tensor1[L] = Tensor[Tuple1[L]]
+type Tensor2[L1, L2] = Tensor[(L1, L2)]
+type Tensor3[L1, L2, L3] = Tensor[(L1, L2, L3)]
+type Tensor4[L1, L2, L3, L4] = Tensor[(L1, L2, L3, L4)]
+
 object Tensor0:
-  import Tensor.{Tensor0, Tensor1}
 
   def apply(jaxValue: Jax.PyDynamic): Tensor0 = Tensor(jaxValue)
 
@@ -98,7 +99,6 @@ object Tensor0:
       case v: Boolean => Tensor0(Jax.jnp.array(v, dtype=DType.Bool.jaxType))
 
 object Tensor1:
-  import Tensor.{Tensor1, Tensor2}
 
   def apply[L <: Label : ValueOf](axis: Axis[L], values: ArraySeq[Float], dtype: DType = DType.Float32): Tensor1[L] =
     Tensor(Jax.jnp.array(values.toPythonProxy, dtype = dtype.jaxType))
@@ -107,9 +107,6 @@ object Tensor1:
     Tensor(Jax.jnp.array(values.toPythonProxy, dtype = dtype.jaxType))
 
 object Tensor2:
-
-  import Tensor.{Tensor1, Tensor2}
-  import Shape.Shape2
 
   def apply[L1 <: Label : ValueOf, L2 <: Label : ValueOf](
       shape: Shape2[L1, L2],
@@ -140,9 +137,6 @@ object Tensor2:
     Tensor(Jax.jnp.diag(diag.jaxValue))
 
 object Tensor3:
-
-  import Tensor.Tensor3
-  import Shape.Shape3
 
   def apply[L1 <: Label : ValueOf, L2 <: Label : ValueOf, L3 <: Label : ValueOf](
       shape: Shape3[L1, L2, L3],

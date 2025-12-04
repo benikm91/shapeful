@@ -69,10 +69,10 @@ object Shape:
 
   private[tensorv2] def fromList[T <: Tuple : NameOf](dims: List[Int]) = new Shape[T](dims)
 
-  type Shape0 = Shape[EmptyTuple]
-  type Shape1[L <: Label] = Shape[L *: EmptyTuple]
-  type Shape2[L1 <: Label, L2 <: Label] = Shape[L1 *: L2 *: EmptyTuple]
-  type Shape3[L1 <: Label, L2 <: Label, L3 <: Label] = Shape[L1 *: L2 *: L3 *: EmptyTuple]
+type Shape0 = Shape[EmptyTuple]
+type Shape1[L <: Label] = Shape[L *: EmptyTuple]
+type Shape2[L1 <: Label, L2 <: Label] = Shape[L1 *: L2 *: EmptyTuple]
+type Shape3[L1 <: Label, L2 <: Label, L3 <: Label] = Shape[L1 *: L2 *: L3 *: EmptyTuple]
 
 val Shape0 = Shape.empty
 

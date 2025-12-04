@@ -13,7 +13,8 @@ import shapeful.tensorv2.TupleHelpers.ValuesOf.AxesFactory
 import shapeful.tensorv2.Remover
 import scala.collection.View.Zip
 
-def main(args: Array[String]): Unit =
+@main
+def tensorAPI(): Unit =
   val AB = Tensor.ones(Shape(
     Axis["A"] -> 10,
     Axis["B"] -> 5,

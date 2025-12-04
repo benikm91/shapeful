@@ -12,6 +12,7 @@ import shapeful.tensorv2.AxisIndex
 import shapeful.tensorv2.TupleHelpers.ValuesOf.AxesFactory
 import shapeful.tensorv2.Remover
 import scala.collection.View.Zip
+import shapeful.Label
 
 @main def playground(): Unit =
   println("TensorV2 Playground")
@@ -114,7 +115,6 @@ import scala.collection.View.Zip
     println(e.shape)
   }
   { 
-    import shapeful.tensorv2.Tensor.{Tensor1, Tensor2}
     case class LinearLayer(
       weight: Tensor2["Feature", "Output"],
       bias: Tensor1["Output"],
@@ -142,7 +142,6 @@ import scala.collection.View.Zip
   }
   {
     println("Contraction with overlapping axes")
-    import shapeful.Label
     import scala.util.NotGiven
     def f[L1 <: Label : ValueOf, L2 <: Label : ValueOf, L3 <: Label : ValueOf](
       x: Tensor[(L1, L2)], 
@@ -174,7 +173,6 @@ import scala.collection.View.Zip
     ))
     println(f(t1, t2))
     println("vmap 2")
-    import shapeful.Label
     import scala.util.NotGiven
     val x1 = Tensor.ones(Shape(
       Axis["B"] -> 1,
@@ -187,7 +185,6 @@ import scala.collection.View.Zip
     ))
   }
   {
-    import shapeful.Label
     def f[L1 <: Label : ValueOf, L2 <: Label : ValueOf, L3 <: Label : ValueOf](x: Tensor[(L1, L2)], y: Tensor[(L2, L3)]) = 
       x.vmap(Axis[L1]){ xi =>
         y.vmap(Axis[L3]){ yi =>
@@ -206,8 +203,6 @@ import scala.collection.View.Zip
     ).shape)
   }
   {
-    import shapeful.Label
-    import shapeful.tensorv2.Tensor.{Tensor1, Tensor2}
 
     case class LinearLayer[
       ContractAxis <: Label : ValueOf,
@@ -353,7 +348,6 @@ import scala.collection.View.Zip
   }
   { 
     println("zipvmap tests")
-    import shapeful.Label
     type Batch = "Batch"
     type Asset = "Asset"
     type Region = "Region"
@@ -389,7 +383,6 @@ import scala.collection.View.Zip
     println(res2.shape)
   }
   {
-    import shapeful.Label
     import shapeful.tensorv2.* // Assuming imports
 
     type Batch = "Batch"
