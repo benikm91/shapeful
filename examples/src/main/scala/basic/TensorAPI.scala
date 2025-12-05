@@ -341,57 +341,89 @@ def tensorAPI(): Unit =
      * If axis must be inserted at a specific position use `rearrange` after `appendAxis` or `prependAxis`.
      */
     // AB[:, :, None]
-    val resAppendAxis = AB.appendAxis(Axis["C"]) // Tensor3[("A", "B", "C")]
-    /** 
-     * PREPEND AXIS
-     * Analog to jnp.expand_dims / None indexing in JAX
-     */
-    // AB[None, :, :]
-    val resPrependAxis = AB.prependAxis(Axis["C"]) // Tensor3[("C", "A", "B")]
+    opBlock("append axis C to AB") {
+      py.exec("res = ab[:, :, None]")
+      AB.appendAxis(Axis["C"])
+    }
+    opBlock("prepend axis C to AB") {
+      py.exec("res = ab[None, :, :]")
+      AB.prependAxis(Axis["C"])
+    }
+    opBlock("insert axis C to AB") {
+      py.exec("res = ab[:, None, :]")
+      /*
+      Note that we have no direct equivalent to this in shapeful,
+      but we can achieve the same result by first appending or prepending the axis,
+      and then rearranging the axes to the desired order.
+      */
+      AB.prependAxis(Axis["C"]).rearrange(
+        (Axis["A"], Axis["C"], Axis["B"])
+      )
+    }
     /** 
      * SQUEEZE
      * Analog to jnp.squeeze in JAX
      */
-    // AB.squeeze(axis=0)
-    val resSqueeze = Tensor.ones(Shape(
-      Axis["A"] -> 1,
-      Axis["B"] -> 3,
-    )).squeeze(Axis["A"]) // Tensor1[("B")]
+    opBlock("squeeze A from AB") {
+      py.exec("tmp = jnp.ones((1,3))") // Setup
+      val tmp = Tensor.ones(Shape(
+        Axis["A"] -> 1,
+        Axis["B"] -> 3,
+      ))
+      py.exec("res = jnp.squeeze(tmp, axis=0)")
+      tmp.squeeze(Axis["A"])
+    }
     /** VMAP (/ ZIPVMAP)
      * Analog to JAX vmap, with one changes:
      * - vmap allows only single axis
      * - zipvmap for multiple tensors to be mapped over the same axis (vmap in JAX)
      */
-    val resVmapAB = AB.vmap(Axis["A"]){ row => row.sum }
-    val resVmapABCD = ABCD.vmap(Axis["C"]){ sliceABD => 
-      val resBD = sliceABD.sum(Axis["A"]) 
-      resBD
+    opBlock("vmap AB over axis A") {
+      py.exec("res = jax.vmap(lambda row: jnp.sum(row))(ab)")
+      AB.vmap(Axis["A"]){ row => row.sum }
     }
-    val resZipVmap2 = zipvmap(Axis["A"])((AB, AC)) { 
-      case (abi, aci) => abi.sum + aci.sum 
+    opBlock("vmap ABCD over axis C") {
+      py.exec("res = jax.vmap(lambda slice: jnp.sum(slice, axis=0), in_axes=2)(abcd)")
+      ABCD.vmap(Axis["C"]){ slice => slice.sum(Axis["A"]) }
     }
-    val resZipVmap4 = zipvmap(Axis["A"])((AB, AC, AB, AC)) { 
-      case (abi, aci, ab2i, ac2i) => abi.sum + aci.sum + ab2i.sum + ac2i.sum
+    opBlock("vmap ABCD over axis C and D") {
+      // TODO Is this even supported in JAX?
+      // py.exec("res = jax.vmap(lambda ad: jnp.sum(ad, axis=0), in_axes=(1, 2))(abcd)")
+      // TODO ABCD.vmap((Axis["B"], Axis["D"])) { _.sum(Axis["A"]) }
+      ABCD
     }
-  }
-  {
+    opBlock("vmap ABCD over axis C then D") {
+      py.exec("res = jax.vmap(lambda abc: jax.vmap(lambda ad: jnp.sum(ad, axis=0), in_axes=1)(abc), in_axes=2)(abcd)")
+      ABCD.vmap(Axis["C"]) { _.vmap(Axis["B"]) { _.sum(Axis["A"]) }}
+    }
+    opBlock("vmap/zipvmap AB AC") {
+      py.exec("res = jax.vmap(lambda abi, aci: jnp.sum(abi) + jnp.sum(aci))(ab, ac)")
+      zipvmap(Axis["A"])((AB, AC)) { 
+        case (abi, aci) => abi.sum + aci.sum 
+      }
+    }
+    opBlock("vmap/zipvmap AB AC AB AC") {
+      py.exec("res = jax.vmap(lambda abi, aci, ab2i, ac2i: jnp.sum(abi) + jnp.sum(aci) + jnp.sum(ab2i) + jnp.sum(ac2i))(ab, ac, ab, ac)")
+      zipvmap(Axis["A"])((AB, AC, AB, AC)) { 
+        case (abi, aci, ab2i, ac2i) => abi.sum + aci.sum + ab2i.sum + ac2i.sum
+      }
+    }
     /**
      * WHERE 
      * Analog to jnp.where in JAX
      */
-    val x = Tensor.ones(Shape(
-      Axis["A"] -> 2,
-      Axis["B"] -> 3,
-    ))
-    val y = Tensor.zeros(Shape(
-      Axis["A"] -> 2,
-      Axis["B"] -> 3,
-    ))
-    val condition = Tensor.zeros(Shape(
-      Axis["A"] -> 2,
-      Axis["B"] -> 3,
-    )).asType(DType.Bool)
-    val res = where(condition, x, y)
+    opBlock("where") {
+      py.exec("shape = (2, 3)")
+      py.exec("x = jnp.ones(shape)")
+      py.exec("y = jnp.zeros(shape)")
+      py.exec("condition = jnp.zeros(shape)")
+      py.exec("res = jnp.where(condition, x, y)")
+      val shape = Shape(Axis["A"] -> 2, Axis["B"] -> 3)
+      val x = Tensor.ones(shape)
+      val y = Tensor.zeros(shape)
+      val condition = Tensor.zeros(shape)
+      where(condition, x, y)
+    }
   }
   {
     /**
