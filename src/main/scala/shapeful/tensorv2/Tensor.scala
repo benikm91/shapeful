@@ -7,7 +7,7 @@ import shapeful.jaxv2.Jax
 import shapeful.jaxv2.JaxDType
 import shapeful.jaxv2.Jax.PyDynamic
 import shapeful.Label
-import shapeful.tensorv2.TupleHelpers.NameOf
+import shapeful.tensorv2.NameOf
 import shapeful.random.Random
 import me.shadaj.scalapy.py.SeqConverters
 

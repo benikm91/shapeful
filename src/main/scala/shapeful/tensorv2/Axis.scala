@@ -9,6 +9,11 @@ object Axis:
   def apply[A <: Label]: Axis[A] = 
     new AxisImpl[A]()
 
+  type UnwrapAxes[T <: Tuple] <: Tuple = T match
+    case EmptyTuple => EmptyTuple
+    case Axis[a] *: tail => a *: UnwrapAxes[tail]
+    case h *: tail => h *: UnwrapAxes[tail]
+  
 /**
   * TODO Is this Shape1?
   * Represents an axis with label A.
@@ -17,28 +22,30 @@ object Axis:
 sealed trait Axis[A <: Label]
 class AxisImpl[A <: Label] extends Axis[A]
 
-sealed trait AxisIndex[Shape <: Tuple, AxisLabel]:
+trait AxisIndex[Shape <: Tuple, AxisLabel]:
   def value: Int
 
 object AxisIndex:
+
+  def apply[T <: Tuple, L](using idx: AxisIndex[T, L]): Int = idx.value
+
+  given head[L, Tail <: Tuple]: AxisIndex[L *: Tail, L] with
+    val value = 0
+
+  given tail[H, T <: Tuple, L](using 
+    next: AxisIndex[T, L]
+  ): AxisIndex[H *: T, L] with
+    val value = 1 + next.value
+
+  given concatRight[A <: Tuple, B <: Tuple, L](using
+    sizeA: ValueOf[Tuple.Size[A]],
+    idxB: AxisIndex[B, L],
+  ): AxisIndex[Tuple.Concat[A, B], L] with
+    val value = sizeA.value + idxB.value
   
-  class AxisIndexImpl[Shape <: Tuple, AxisLabel](val value: Int) extends AxisIndex[Shape, AxisLabel]
-
-  private inline def indexOf[ B <: Tuple, ToFind]: Int =
-    inline erasedValue[B] match
-      case _: (ToFind *: tail)    => 0
-      case _: (head *: tail) => 1 + indexOf[tail, ToFind]
-      case _: EmptyTuple     =>
-        error("Element not found in tuple")
-
-  private inline def indicesOf[InTuple <: Tuple, ToFind <: Tuple]: Tuple =
-    inline erasedValue[ToFind] match
-      case _: EmptyTuple     => EmptyTuple
-      case _: (head *: tail) =>
-        indexOf[InTuple, head] *: indicesOf[InTuple, tail]
-
-  inline given [T <: Tuple, L]: AxisIndex[T, L] = AxisIndexImpl[T, L](indexOf[T, L])
-
+  given concatEnd[A <: Tuple, L]: AxisIndex[Tuple.Concat[A, Tuple1[L]], L] with
+    val value = -1
+    
 sealed trait AxisIndices[T <: Tuple, AxisLabels <: Tuple]:
   def values: List[Int]
 

@@ -1,16 +1,13 @@
 package shapeful.tensorv2
 
 import shapeful.Label
-import shapeful.jaxv2.Jax
-import shapeful.jaxv2.Einops
+import shapeful.jaxv2.{Jax, Einops}
 import scala.annotation.targetName
-import scala.util.NotGiven
 import shapeful.jax.Jax.PyDynamic
 import scala.annotation.implicitNotFound
-import TupleHelpers.{UnwrapAxes, RemoveAll}
-import shapeful.tensorv2.TupleHelpers.DimExtractor
-import shapeful.tensorv2.TupleHelpers.ValuesOf.WrapAxes
-import shapeful.tensorv2.TupleHelpers.NameOf
+import shapeful.tensorv2.TupleHelpers.{Remover, RemoverAll}
+import shapeful.tensorv2.NameOf
+import shapeful.tensorv2.Axis.UnwrapAxes
 
 object TensorOps:
 
@@ -100,25 +97,18 @@ object TensorOps:
 
       // Axis-wise Reductions
       def sum[L <: Label : ValueOf](axis: Axis[L])(using axisIndex: AxisIndex[T, L], remover: Remover[T, L]): Tensor[remover.Out] = 
-        given removerNameOf: NameOf[remover.Out] = NameOf.removerNameOf(remover)
         Tensor(Jax.jnp.sum(t.jaxValue, axisIndex.value))
       def mean[L <: Label : ValueOf](axis: Axis[L])(using axisIndex: AxisIndex[T, L], remover: Remover[T, L]): Tensor[remover.Out] = 
-        given removerNameOf: NameOf[remover.Out] = NameOf.removerNameOf(remover)
         Tensor(Jax.jnp.mean(t.jaxValue, axisIndex.value))
       def std[L <: Label : ValueOf](axis: Axis[L])(using axisIndex: AxisIndex[T, L], remover: Remover[T, L]): Tensor[remover.Out] = 
-        given removerNameOf: NameOf[remover.Out] = NameOf.removerNameOf(remover)
         Tensor(Jax.jnp.std(t.jaxValue, axisIndex.value))
       def max[L <: Label : ValueOf](axis: Axis[L])(using axisIndex: AxisIndex[T, L], remover: Remover[T, L]): Tensor[remover.Out] = 
-        given removerNameOf: NameOf[remover.Out] = NameOf.removerNameOf(remover)
         Tensor(Jax.jnp.max(t.jaxValue, axisIndex.value))
       def min[L <: Label : ValueOf](axis: Axis[L])(using axisIndex: AxisIndex[T, L], remover: Remover[T, L]): Tensor[remover.Out] = 
-        given removerNameOf: NameOf[remover.Out] = NameOf.removerNameOf(remover)
         Tensor(Jax.jnp.min(t.jaxValue, axisIndex.value))
       def argmax[L <: Label : ValueOf](axis: Axis[L])(using axisIndex: AxisIndex[T, L], remover: Remover[T, L]): Tensor[remover.Out] = 
-        given removerNameOf: NameOf[remover.Out] = NameOf.removerNameOf(remover)
         Tensor(Jax.jnp.argmax(t.jaxValue, axisIndex.value))
       def argmin[L <: Label : ValueOf](axis: Axis[L])(using axisIndex: AxisIndex[T, L], remover: Remover[T, L]): Tensor[remover.Out] = 
-        given removerNameOf: NameOf[remover.Out] = NameOf.removerNameOf(remover)
         Tensor(Jax.jnp.argmin(t.jaxValue, axisIndex.value))
   
       // Axes-wise Reductions
@@ -127,7 +117,6 @@ object TensorOps:
           axesIndices: AxisIndices[T, UnwrapAxes[Inputs]],
           nameOf: NameOf[UnwrapAxes[Inputs]],
       ): Tensor[remover.Out] =
-          given removerNameOf: NameOf[remover.Out] = NameOf.removerAllNameOf(remover)
           import me.shadaj.scalapy.py.SeqConverters
           Tensor(Jax.jnp.sum(t.jaxValue, axesIndices.values.toPythonProxy))
       
@@ -161,9 +150,6 @@ object TensorOps:
       ): Tensor[Tuple.Concat[remover.Out, otherRemover.Out]] =
         import me.shadaj.scalapy.py.SeqConverters
         import NameOf.ForConcat.given
-
-        given removerNameOf: NameOf[remover.Out] = NameOf.removerNameOf(remover)
-        given otherRemoverNameOf: NameOf[otherRemover.Out] = NameOf.removerNameOf(otherRemover)
 
         val axesTuple1 = Jax.Dynamic.global.tuple(Seq(axisIndex.value).toPythonProxy)
         val axesTuple2 = Jax.Dynamic.global.tuple(Seq(otherAxisIndex.value).toPythonProxy)
@@ -225,7 +211,22 @@ object TensorOps:
         case h *: t => Op[h, TupleReduce[t, Op]]
 
       type JoinNames[T <: Tuple] = TupleReduce[T, shapeful.StringMath.*]
-    
+
+    trait DimExtractor[T]:
+      def extract(t: T): Map[String, Int]
+
+    object DimExtractor:
+      given DimExtractor[EmptyTuple] with
+        def extract(t: EmptyTuple) = Map.empty
+
+      given [L <: Label, Tail <: Tuple](using
+        labelValue: ValueOf[L],
+        tailExtractor: DimExtractor[Tail]
+      ): DimExtractor[(Axis[L], Int) *: Tail] with
+        def extract(t: (Axis[L], Int) *: Tail) =
+          val (_, size) = t.head
+          Map(labelValue.value.toString -> size) ++ tailExtractor.extract(t.tail)
+      
     import Util.*
 
     object TensorWhere:
@@ -279,7 +280,6 @@ object TensorOps:
         axesIndices: AxisIndices[T, ExtractLabels[Inputs]],
         namesOf: NameOf[LabelsToRemove],
       ): Tensor[remover.Out] =
-        given removerNameOf: NameOf[remover.Out] = NameOf.removerAllNameOf(remover)
         val pyIndices = tensor.calcPyIndices(inputs, axesIndices)
         Tensor(tensor.jaxValue.bracketAccess(pyIndices))
 
@@ -292,11 +292,11 @@ object TensorOps:
         namesOf: NameOf[LabelsToRemove],
       ): Tensor[remover.Out] = slice(Tuple1(axisWithSliceIndex))
 
-      def set[Inputs <: Tuple, LabelsToRemove <: Tuple](
+      def set[Inputs <: Tuple, LabelsToRemove <: Tuple, O <: Tuple](
         inputs: Inputs
       )(using 
         sliceExtractor: SliceLabelExtractor[Inputs, LabelsToRemove],
-        remover: RemoverAll[T, LabelsToRemove],
+        remover: RemoverAll[T, LabelsToRemove]{ type Out = O },
         axesIndices: AxisIndices[T, ExtractLabels[Inputs]],
         namesOf: NameOf[LabelsToRemove]
       )(value: Tensor[remover.Out]): Tensor[T] =
@@ -401,7 +401,6 @@ object TensorOps:
           tensor.shape.dimensions(axisIndex.value) == 1, 
           s"Cannot squeeze axis ${axis} of size ${tensor.shape.dimensions(axisIndex.value)}"
         )
-        given removerNameOf: NameOf[remover.Out] = NameOf.removerNameOf(remover)
         Tensor(Jax.jnp.squeeze(tensor.jaxValue, axis = axisIndex.value))
 
   end Structural
@@ -443,7 +442,6 @@ object TensorOps:
           axisIndex: AxisIndex[HeadShape, L],
           tailZipper: Zipper.Aux[TailShapes, L, TailSliced],
         ): Zipper.Aux[HeadShape *: TailShapes, L, remover.Out *: TailSliced] = 
-          given removerNameOf: NameOf[remover.Out] = NameOf.removerNameOf(remover)
           new Zipper[HeadShape *: TailShapes, L]:
             type SlicedShapes = remover.Out *: TailSliced
 
@@ -512,12 +510,30 @@ object TensorOps:
           f: Tensor[remover.Out] => Tensor[OuterShape]
       ): Tensor[Tuple.Concat[Tuple1[VmapAxis], OuterShape]] =
         val fpy = (jxpr: Jax.PyDynamic) =>
-            given namesOf: NameOf[remover.Out] = NameOf.removerNameOf(remover)
             val innerTensor = Tensor[remover.Out](jxpr)
             val result = f(innerTensor)
             result.jaxValue
 
+        import NameOf.ForConcat.given
         Tensor(Jax.jax_helper.vmap(fpy, vmapAxisIndex.value)(t.jaxValue))
+
+      def vapply[L <: Label : ValueOf](
+        axis: Axis[L]
+      )(using
+        axisIndex: AxisIndex[T, L],
+      )(
+        f: Tensor[Tuple1[L]] => Tensor[Tuple1[L]]
+      ): Tensor[T] = 
+        val fpy = (jxpr: Jax.PyDynamic) =>
+          val inputTensor = Tensor[Tuple1[L]](jxpr)
+          val result = f(inputTensor)
+          result.jaxValue
+
+        Tensor[T](Jax.jnp.apply_along_axis(
+          fpy, 
+          axisIndex.value, 
+          t.jaxValue
+        ))
 
   end Functional
 

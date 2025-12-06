@@ -1,17 +1,9 @@
 package src.main.scala.basic
 
 import shapeful.StringMath.*
-import shapeful.tensorv2.{Axis, Shape, Tensor0, Tensor1, Tensor2, Tensor, DType, Device}
 import scala.collection.compat.immutable.ArraySeq
+import shapeful.tensorv2.{Axis, AxisIndex, Shape, Tensor0, Tensor1, Tensor2, Tensor, DType, Device}
 import shapeful.tensorv2.TensorOps.*
-import shapeful.tensorv2.TupleHelpers
-import shapeful.tensorv2.TupleHelpers.NameOf
-import shapeful.tensorv2.TupleHelpers.UnwrapAxes
-import shapeful.tensorv2.TupleHelpers.ValuesOf
-import shapeful.tensorv2.AxisIndex
-import shapeful.tensorv2.TupleHelpers.ValuesOf.AxesFactory
-import shapeful.tensorv2.Remover
-import scala.collection.View.Zip
 import me.shadaj.scalapy.py
 
 def opBlock[T](operation: String)(block: => T): Unit =
@@ -28,7 +20,6 @@ def tensorAPI(): Unit =
   py.exec("import jax.numpy as jnp")
   py.exec("import einops")
   // py.eval("import jax.numpy as jnp")
-  py.exec("1 + 2")
   val AB = Tensor.ones(Shape(
     Axis["A"] -> 10,
     Axis["B"] -> 5,
@@ -407,6 +398,11 @@ def tensorAPI(): Unit =
       zipvmap(Axis["A"])((AB, AC, AB, AC)) { 
         case (abi, aci, ab2i, ac2i) => abi.sum + aci.sum + ab2i.sum + ac2i.sum
       }
+    }
+    opBlock("vapply AB over axis A") {
+      py.exec("res = jnp.apply_along_axis(lambda row: row, 0, ab)")
+      val res = AB.vapply(Axis["A"]){ row => row }
+      res
     }
     /**
      * WHERE 

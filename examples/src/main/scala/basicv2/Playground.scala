@@ -1,18 +1,13 @@
 package src.main.scala.basic
 
-import shapeful.StringMath.*
-import shapeful.tensorv2.{Axis, Shape, Tensor1, Tensor2, Tensor, DType, Device}
 import scala.collection.compat.immutable.ArraySeq
-import shapeful.tensorv2.TensorOps.*
-import shapeful.tensorv2.TupleHelpers
-import shapeful.tensorv2.TupleHelpers.NameOf
-import shapeful.tensorv2.TupleHelpers.UnwrapAxes
-import shapeful.tensorv2.TupleHelpers.ValuesOf
-import shapeful.tensorv2.AxisIndex
-import shapeful.tensorv2.TupleHelpers.ValuesOf.AxesFactory
-import shapeful.tensorv2.Remover
-import scala.collection.View.Zip
+import shapeful.StringMath.*
 import shapeful.Label
+import shapeful.tensorv2.{Axis, AxisIndex, Shape, Tensor1, Tensor2, Tensor, DType, Device, NameOf}
+import shapeful.tensorv2.TensorOps.*
+import shapeful.tensorv2.TupleHelpers.{Remover, RemoverAll}
+import shapeful.tensorv2.Axis.UnwrapAxes
+
 
 @main def playground(): Unit =
   println("TensorV2 Playground")
@@ -217,7 +212,6 @@ import shapeful.Label
         using 
         axisIndex: AxisIndex[T, ContractAxis],
         remover: Remover[T, ContractAxis],
-        axesFactory: AxesFactory[remover.Out],
       ): Tensor[Tuple.Concat[remover.Out, Tuple1[OutputAxis]]] =
         forward[T, ContractAxis](Axis[ContractAxis])(input)
 
@@ -227,17 +221,13 @@ import shapeful.Label
         using 
         axisIndex: AxisIndex[T, NewContractAxis],
         remover: Remover[T, NewContractAxis],
-        otherRemover: Remover[(NewContractAxis, OutputAxis), NewContractAxis],
-        axesFactory: AxesFactory[remover.Out],
-      ): Tensor[Tuple.Concat[remover.Out, otherRemover.Out]] =
+      ): Tensor[Tuple.Concat[remover.Out, Tuple1[OutputAxis]]] =
         import NameOf.ForConcat.given
 
-        val newWeight = weight.as[(Axis[NewContractAxis], Axis[OutputAxis])]
+        val newWeight: Tensor2[NewContractAxis, OutputAxis] = weight.as[(Axis[NewContractAxis], Axis[OutputAxis])]
         val out = input.contract(Axis[NewContractAxis])(newWeight)
-        
-        val axes = axesFactory()
-        out
-        // TODO implement zip
+
+        out.vapply(Axis[OutputAxis]){ _ + bias }
     
     val layer = LinearLayer(
       weight = Tensor.zeros(Shape(

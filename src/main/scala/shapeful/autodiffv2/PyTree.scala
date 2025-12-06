@@ -10,7 +10,7 @@ import shapeful.tensor.TupleHelpers
 import shapeful.jax.JaxDType
 import scala.deriving.*
 import scala.compiletime.*
-import shapeful.tensorv2.TupleHelpers.NameOf
+import shapeful.tensorv2.NameOf
 
 trait ToPyTree[P]:
   def toPyTree(p: P): Jax.PyAny

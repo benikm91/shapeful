@@ -3,7 +3,7 @@ package shapeful.tensorv2
 import shapeful.Label
 import scala.collection.View.Empty
 import scala.annotation.publicInBinary
-import shapeful.tensorv2.TupleHelpers.NameOf
+import shapeful.tensorv2.NameOf
 
 /** Represents the (typed) Shape of a tensor with runtime labels
   */
