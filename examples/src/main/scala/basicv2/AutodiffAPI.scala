@@ -1,4 +1,4 @@
-package src.main.scala.basic
+package src.main.scala.basicv2
 
 import shapeful.StringMath.*
 import shapeful.tensorv2.{Axis, Shape, Tensor0, Tensor1, Tensor2, Tensor, DType, Device}

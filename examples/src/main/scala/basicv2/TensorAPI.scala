@@ -1,4 +1,4 @@
-package src.main.scala.basic
+package src.main.scala.basicv2
 
 import shapeful.StringMath.*
 import scala.collection.compat.immutable.ArraySeq
