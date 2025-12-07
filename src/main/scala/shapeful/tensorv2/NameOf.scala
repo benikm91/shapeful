@@ -1,13 +1,24 @@
 package shapeful.tensorv2
 
-import shapeful.tensorv2.TupleHelpers.RemoverAll
+import shapeful.tensorv2.TupleHelpers.{RemoverAll, Replacer}
 
 trait NameOf[T]:
     def names: List[String]
 
 class NameOfImpl[T](val names: List[String]) extends NameOf[T]
 
-object NameOf:
+trait NameOfLowPriority:
+  given derivedAllRemover[T <: Tuple, ToRemove <: Tuple, O <: Tuple](using
+    removerAll: RemoverAll[T, ToRemove] { type Out = O },
+    nameOf: NameOf[T],
+    toRemoveNameOf: NameOf[ToRemove],
+  ): NameOf[O] = 
+    val namesToRemove = toRemoveNameOf.names.toSet
+    NameOfImpl[O](
+      summon[NameOf[T]].names.filterNot(namesToRemove.contains)
+    )
+
+object NameOf extends NameOfLowPriority:
 
     given namesOfEmpty: NameOf[EmptyTuple] = new NameOfImpl[EmptyTuple](Nil)
 
@@ -27,14 +38,17 @@ object NameOf:
       v.value.toString :: t.names
     )
 
-    given derivedAllRemover[T <: Tuple, ToRemove <: Tuple, O <: Tuple](using
-      removerAll: RemoverAll[T, ToRemove] { type Out = O },
+    given derivedReplacer[T <: Tuple, ToReplace, OutAxis, O <: Tuple](using
+      replacer: Replacer[T, ToReplace, OutAxis] { type Out = O },
       nameOf: NameOf[T],
-      toRemoveNameOf: NameOf[ToRemove],
+      toReplaceNameOf: ValueOf[ToReplace],
+      outAxisValue: ValueOf[OutAxis],
     ): NameOf[O] = 
-      val namesToRemove = toRemoveNameOf.names.toSet
+      val toReplaceNames = List(toReplaceNameOf.value.toString)
       NameOfImpl[O](
-        summon[NameOf[T]].names.filterNot(namesToRemove.contains)
+        summon[NameOf[T]].names.map{ name =>
+          if toReplaceNames.contains(name) then outAxisValue.value.toString else name
+        }
       )
 
     object ForConcat:

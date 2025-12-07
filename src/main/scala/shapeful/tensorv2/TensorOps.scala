@@ -5,7 +5,7 @@ import shapeful.jaxv2.{Jax, Einops}
 import scala.annotation.targetName
 import shapeful.jax.Jax.PyDynamic
 import scala.annotation.implicitNotFound
-import shapeful.tensorv2.TupleHelpers.{Remover, RemoverAll}
+import shapeful.tensorv2.TupleHelpers.{Remover, RemoverAll, Replacer}
 import shapeful.tensorv2.NameOf
 import shapeful.tensorv2.Axis.UnwrapAxes
 
@@ -272,6 +272,8 @@ object TensorOps:
         
         Jax.Dynamic.global.tuple(indicesBuffer.toSeq.toPythonProxy)
 
+      def split = ???
+
       def slice[Inputs <: Tuple, LabelsToRemove <: Tuple](
         inputs: Inputs,
       )(using 
@@ -498,6 +500,8 @@ object TensorOps:
     
     export ZipVmap.zipvmap
 
+    import Util.*
+
     extension [T <: Tuple : NameOf](t: Tensor[T])
 
       def vmap[VmapAxis <: Label : ValueOf, OuterShape <: Tuple : NameOf](
@@ -517,19 +521,20 @@ object TensorOps:
         import NameOf.ForConcat.given
         Tensor(Jax.jax_helper.vmap(fpy, vmapAxisIndex.value)(t.jaxValue))
 
-      def vapply[L <: Label : ValueOf](
+      def vapply[L <: Label : ValueOf, OutAxis <: Label : ValueOf](
         axis: Axis[L]
       )(using
         axisIndex: AxisIndex[T, L],
+        replacer: Replacer[T, L, OutAxis],
       )(
-        f: Tensor[Tuple1[L]] => Tensor[Tuple1[L]]
-      ): Tensor[T] = 
+        f: Tensor[Tuple1[L]] => Tensor[Tuple1[OutAxis]]
+      ): Tensor[replacer.Out] = 
         val fpy = (jxpr: Jax.PyDynamic) =>
           val inputTensor = Tensor[Tuple1[L]](jxpr)
           val result = f(inputTensor)
           result.jaxValue
 
-        Tensor[T](Jax.jnp.apply_along_axis(
+        Tensor(Jax.jnp.apply_along_axis(
           fpy, 
           axisIndex.value, 
           t.jaxValue

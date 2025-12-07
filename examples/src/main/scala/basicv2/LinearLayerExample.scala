@@ -3,7 +3,7 @@ package src.main.scala.basicv2
 import shapeful.Label
 import shapeful.tensorv2.{Axis, AxisIndex, Shape, Tensor1, Tensor2, Tensor, DType, Device, NameOf}
 import shapeful.tensorv2.TensorOps.*
-import shapeful.tensorv2.TupleHelpers.{Remover, RemoverAll}
+import shapeful.tensorv2.TupleHelpers.{Remover, RemoverAll, Replacer}
 import shapeful.tensorv2.Axis.UnwrapAxes
 
 
@@ -22,9 +22,9 @@ def specificLinearLayerExample(): Unit =
     ):
       def forward(
         input: Tensor2["Batch", "Feature"],
-      ): Tensor2["Batch", "Output"] =
-        val out = input.contract(Axis["Feature"])(weight)
-        out.vmap(Axis["Batch"]){ _ + bias }
+      ): Tensor2["Batch", "Output"] = input.vmap(Axis["Batch"]){ batch =>
+        batch.contract(Axis["Feature"])(weight) + bias
+      }
     val layer = LinearLayer(
       weight = Tensor.zeros(Shape(
         Axis["Feature"] -> 16,
@@ -46,6 +46,7 @@ def specificLinearLayerExample(): Unit =
  */
 def generalLinearLayerExample(): Unit =
     case class LinearLayer[
+        // TODO can we do <: Axis (and change Axis to have Label and ValueOf oob) to make this easier to implement
         ContractAxis <: Label : ValueOf,
         OutputAxis <: Label : ValueOf,
     ](
@@ -57,8 +58,8 @@ def generalLinearLayerExample(): Unit =
         )(
             using 
             axisIndex: AxisIndex[T, ContractAxis],
-            remover: Remover[T, ContractAxis],
-        ): Tensor[Tuple.Concat[remover.Out, Tuple1[OutputAxis]]] =
+            replacer: Replacer[T, ContractAxis, OutputAxis],
+        ): Tensor[replacer.Out] =
             forward[T, ContractAxis](Axis[ContractAxis])(input)
 
         def forward[T <: Tuple : NameOf, NewContractAxis <: Label : ValueOf](axis: Axis[NewContractAxis])(
@@ -66,14 +67,12 @@ def generalLinearLayerExample(): Unit =
         )(
             using 
             axisIndex: AxisIndex[T, NewContractAxis],
-            remover: Remover[T, NewContractAxis],
-        ): Tensor[Tuple.Concat[remover.Out, Tuple1[OutputAxis]]] =
-            import NameOf.ForConcat.given
-
+            replacer: Replacer[T, NewContractAxis, OutputAxis],
+        ): Tensor[replacer.Out] =
             val newWeight: Tensor2[NewContractAxis, OutputAxis] = weight.as[(Axis[NewContractAxis], Axis[OutputAxis])]
-            val out = input.contract(Axis[NewContractAxis])(newWeight)
-
-            out.vapply(Axis[OutputAxis]){ _ + bias }
+            input.vapply(Axis[(NewContractAxis)]) { features => 
+                features.contract(Axis[NewContractAxis])(newWeight)  + bias
+            }
     
     val layer = LinearLayer(
         weight = Tensor.zeros(Shape(

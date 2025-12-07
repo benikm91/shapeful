@@ -401,7 +401,7 @@ def tensorAPI(): Unit =
     }
     opBlock("vapply AB over axis A") {
       py.exec("res = jnp.apply_along_axis(lambda row: row, 0, ab)")
-      val res = AB.vapply(Axis["A"]){ row => row }
+      val res = AB.vapply(Axis["A"]) { row => row }
       res
     }
     /**

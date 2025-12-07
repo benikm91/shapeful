@@ -25,3 +25,20 @@ object TupleHelpers:
       next: RemoverAll[Tail, K *: EmptyTuple] { type Out = TailOut }
     ): RemoverAll[H *: Tail, K *: EmptyTuple] with
       type Out = H *: TailOut
+
+  trait Replacer[T <: Tuple, Target, Replacement]:
+    type Out <: Tuple
+
+  object Replacer extends ReplacerLowPriority:
+
+    given found[Target, Tail <: Tuple, Replacement]: Replacer[Target *: Tail, Target, Replacement] with
+      type Out = Replacement *: Tail
+
+    given empty[Target, Replacement]: Replacer[EmptyTuple, Target, Replacement] with
+      type Out = EmptyTuple
+
+  trait ReplacerLowPriority:
+    given recurse[Head, Tail <: Tuple, Target, Replacement, TailOut <: Tuple](using
+      next: Replacer[Tail, Target, Replacement] { type Out = TailOut }
+    ): Replacer[Head *: Tail, Target, Replacement] with
+      type Out = Head *: TailOut
