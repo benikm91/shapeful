@@ -5,6 +5,7 @@ import scala.collection.compat.immutable.ArraySeq
 import shapeful.tensorv2.{Axis, AxisIndex, Shape, Tensor0, Tensor1, Tensor2, Tensor, DType, Device}
 import shapeful.tensorv2.TensorOps.*
 import me.shadaj.scalapy.py
+import me.shadaj.scalapy.py.PythonException
 
 def opBlock[T](operation: String)(block: => T): Unit =
   val res = block
@@ -21,15 +22,26 @@ def tensorAPI(): Unit =
   py.exec("import einops")
   // py.eval("import jax.numpy as jnp")
   val AB = Tensor.ones(Shape(
-    Axis["A"] -> 10,
-    Axis["B"] -> 5,
+    Axis["A"] -> 2,
+    Axis["B"] -> 3,
   ))
-  py.exec("ab = jnp.ones((10, 5))")
+  py.exec("ab = jnp.ones((2, 3))")
   val AC = Tensor.ones(Shape(
-      Axis["A"]-> 10,
-      Axis["C"] -> 5
+      Axis["A"]-> 2,
+      Axis["C"] -> 4
   ))
-  py.exec("ac = jnp.ones((10, 5))")
+  py.exec("ac = jnp.ones((2, 4))")
+  val BCD = Tensor.ones(Shape(
+      Axis["B"]-> 3,
+      Axis["C"] -> 4,
+      Axis["D"] -> 5,
+  ))
+  py.exec("bcd = jnp.ones((3, 4, 5))")
+  val BC = Tensor.ones(Shape(
+      Axis["B"]-> 3,
+      Axis["C"] -> 4,
+  ))
+  py.exec("bc = jnp.ones((3, 4))")
   val ABCD = Tensor.ones(Shape(
       Axis["A"] -> 2,
       Axis["B"] -> 3,
@@ -41,10 +53,67 @@ def tensorAPI(): Unit =
   println((AC.shape, py.eval("ac.shape")))
   println((ABCD.shape, py.eval("abcd.shape")))
   {
-    println("ELEMENT-WISE OPERATIONS")
+    /* 
+     * BROADCASTING
+     * https://numpy.org/doc/stable/user/basics.broadcasting.html
+     */
+    println("BROADCASTING")
+    opBlock("broadcast ABCD + BCD") { // Axis broadcasting (backward)
+      // I don't 
+      py.exec("res = abcd + bcd")
+      // Syntax? 
+      // ABCD + BCD
+      // ABCD :+ BCD
+      // ABCD + BCD.lift(ABCD.shape)
+      // ABCD.vmap((Axis["A"])) { _ + BCD }
+      ABCD
+    }
+    opBlock("broadcast ABCD + CD") { // Axes broadcasting (backward)
+      py.exec("cd = jnp.ones((4,5))")
+      py.exec("res = abcd + cd")
+      ABCD
+    }
+    opBlock("broadcast ABC1 to ABCD") { // Dim broadcasting
+      // 
+      py.exec("abc1 = jnp.ones((2,3,4,1))")
+      py.exec("res = abcd + abc1")
+      // Do not support as d != 1, broadcasting does implicit magic
+      ABCD
+    }
+    opBlock("broadcast AB11 to ABCD") { // Dims broadcasting
+      py.exec("ab11 = jnp.ones((2,3,1,1))")
+      py.exec("res = abcd + ab11")
+      ABCD
+    }
+    opBlock("broadcast a1 + b") { // "Magic" broadcasting (TODO better name)
+      py.exec("a1 = jnp.ones((2,1))")
+      py.exec("b = jnp.ones((3))")
+      py.exec("res = a1 + b")
+      AB
+    }
+    // Negative examples
+    opBlock("broadcast limit: ABCD + AB") { // Axes broadcasting (forward)
+      try
+        py.exec("res = abcd + ab")
+        assert(false, "Expected exception not thrown")
+      catch
+        case e: PythonException => 
+          py.exec("res = 'Not Supported by JAX'")
+          "Not Supported by shapeful"
+    }
+    opBlock("broadcast limit: ABCD + BC") { // Axes broadcasting (forward and backward)
+      try
+        py.exec("res = abcd + bc")
+        assert(false, "Expected exception not thrown")
+      catch
+        case e: PythonException => 
+          py.exec("res = 'Not Supported by JAX'")
+          "Not Supported by shapeful"
+    }
     /** 
      * ELEMENT-WISE OPERATIONS
      */
+    println("ELEMENT-WISE OPERATIONS")
     opBlock("+") {
       py.exec("res = ab + ab")
       AB + AB
@@ -239,10 +308,10 @@ def tensorAPI(): Unit =
         Axis["B"] -> 2,
       ))
     }
-    opBlock("slice ab axis=[0,3,6]") {
-      py.exec("res = ab[[0,3,6], :]")
+    opBlock("slice ab axis=[0,2]") {
+      py.exec("res = ab[:, [0,2]]")
       AB.slice(  // TODO make (()) optional
-        Axis["A"] -> List(0, 3, 6),
+        Axis["B"] -> List(0, 2),
       )
     }
     /** 
@@ -251,12 +320,11 @@ def tensorAPI(): Unit =
      * - Out of range index leads to an error (instead of clipping)
      * - No colon access (e.g., X[:, 0]), as due to name of axes this is not necessary (just leave out name)
      */
-    // set row vector at A=0, AB.at[0, :].set([0,1,2,3,4])
     opBlock("set ab axis=0") {
-      py.exec("res = ab.at[0, :].set(jnp.array([0,1,2,3,4]))")
+      py.exec("res = ab.at[0, :].set(jnp.array([0,1,2]))")
       AB.set(
         Axis["A"] -> 0
-      )(Tensor1(Axis["B"], ArraySeq(0, 1, 2, 3, 4)))
+      )(Tensor1(Axis["B"], ArraySeq(0, 1, 2)))
     }
     // set sub-matrix, AB.at[0:1, 0:1].set([[1,2],[3,4]])
     opBlock("set ab axis=0:1,0:1") {

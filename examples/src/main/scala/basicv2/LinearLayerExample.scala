@@ -1,7 +1,7 @@
 package src.main.scala.basicv2
 
 import shapeful.Label
-import shapeful.tensorv2.{Axis, AxisIndex, Shape, Tensor1, Tensor2, Tensor, DType, Device, NameOf}
+import shapeful.tensorv2.{Axis, AxisIndex, Shape, Tensor0, Tensor1, Tensor2, Tensor, DType, Device, NameOf}
 import shapeful.tensorv2.TensorOps.*
 import shapeful.tensorv2.TupleHelpers.{Remover, RemoverAll, Replacer}
 import shapeful.tensorv2.Axis.UnwrapAxes
