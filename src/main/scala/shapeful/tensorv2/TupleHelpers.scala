@@ -2,6 +2,28 @@ package shapeful.tensorv2
 
 object TupleHelpers:
 
+  trait Subset[T <: Tuple, SubsetT <: Tuple]:
+    type Out <: Tuple
+
+  object Subset:
+
+    given empty[T <: Tuple]: Subset[T, EmptyTuple] with
+      type Out = EmptyTuple
+
+    given chain[T <: Tuple, K1, K2, Rest <: Tuple, Inter <: Tuple, O <: Tuple](using
+      s1: Subset[T, K1 *: EmptyTuple] { type Out = Inter },
+      s2: Subset[Inter, K2 *: Rest] { type Out = O }
+    ): Subset[T, K1 *: K2 *: Rest] with
+      type Out = s2.Out
+
+    given singleFound[K, Tail <: Tuple]: Subset[K *: Tail, K *: EmptyTuple] with
+      type Out = Tail
+
+    given singleSearch[H, Tail <: Tuple, K, TailOut <: Tuple](using
+      next: Subset[Tail, K *: EmptyTuple] { type Out = TailOut }
+    ): Subset[H *: Tail, K *: EmptyTuple] with
+      type Out = H *: TailOut
+
   type Remover[T <: Tuple, ToRemoveElement] = RemoverAll[T, ToRemoveElement *: EmptyTuple]
 
   trait RemoverAll[T <: Tuple, ToRemove <: Tuple]:
@@ -33,9 +55,6 @@ object TupleHelpers:
 
     given found[Target, Tail <: Tuple, Replacement]: Replacer[Target *: Tail, Target, Replacement] with
       type Out = Replacement *: Tail
-
-    given empty[Target, Replacement]: Replacer[EmptyTuple, Target, Replacement] with
-      type Out = EmptyTuple
 
   trait ReplacerLowPriority:
     given recurse[Head, Tail <: Tuple, Target, Replacement, TailOut <: Tuple](using

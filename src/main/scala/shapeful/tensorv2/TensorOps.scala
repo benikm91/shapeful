@@ -5,9 +5,35 @@ import shapeful.jaxv2.{Jax, Einops}
 import scala.annotation.targetName
 import shapeful.jax.Jax.PyDynamic
 import scala.annotation.implicitNotFound
-import shapeful.tensorv2.TupleHelpers.{Remover, RemoverAll, Replacer}
+import shapeful.tensorv2.TupleHelpers.{Subset, Remover, RemoverAll, Replacer}
 import shapeful.tensorv2.NameOf
 import shapeful.tensorv2.Axis.UnwrapAxes
+import scala.util.NotGiven
+import scala.collection.View.Empty
+
+trait Broadcast[T1 <: Tuple, T2 <: Tuple, Out <: Tuple]:
+  def broadcast(t1: Tensor[T1], t2: Tensor[T2]): (Tensor[Out], Tensor[Out])
+
+object Broadcast:
+  
+  import shapeful.tensorv2.TensorOps.Structural.lift
+
+  given identity[T <: Tuple]: Broadcast[T, T, T] with
+    def broadcast(t1: Tensor[T], t2: Tensor[T]): (Tensor[T], Tensor[T]) = (t1, t2)
+  
+  given broadcastToLeft[T1 <: Tuple : NameOf, T2 <: Tuple : NameOf](using
+    ev: Subset[T1, T2]
+  ): Broadcast[T1, T2, T1] with
+    def broadcast(t1: Tensor[T1], t2: Tensor[T2]): (Tensor[T1], Tensor[T1]) =
+      val liftedT2 = t2.lift[T1](t1.shape)
+      (t1, liftedT2)
+
+  given broadcastToRight[T1 <: Tuple : NameOf, T2 <: Tuple : NameOf](using
+    ev: Subset[T2, T1],
+  ): Broadcast[T1, T2, T2] with
+    def broadcast(t1: Tensor[T1], t2: Tensor[T2]): (Tensor[T2], Tensor[T2]) =
+      val liftedT1 = t1.lift[T2](t2.shape)
+      (liftedT1, t2)
 
 object TensorOps:
 
@@ -18,9 +44,20 @@ object TensorOps:
   object Elementwise:
     extension [T <: Tuple : NameOf](t: Tensor[T])
       
+      @targetName("addBroadcastTensor")
+      def :+[O <: Tuple](other: Tensor[O])(using broadcaster: Broadcast[T, O, T]): Tensor[T] = 
+        val (left, right) = broadcaster.broadcast(t, other)
+        left.add(right)
+
+      def +:[O <: Tuple : NameOf](other: Tensor[O])(using broadcaster: Broadcast[O, T, O]): Tensor[O] = 
+        val (left, right) = broadcaster.broadcast(other, t)
+        left.add(right)
+
+
       // --- Basic Arithmetic ---
       @targetName("addTensor")
-      def +(other: Tensor[T]): Tensor[T] = Tensor(Jax.jnp.add(t.jaxValue, other.jaxValue))
+      def +(other: Tensor[T]): Tensor[T] = t.add(other)
+      def add(other: Tensor[T]): Tensor[T] = Tensor(Jax.jnp.add(t.jaxValue, other.jaxValue))
       @targetName("addScalar")
       def +(other: Tensor0): Tensor[T] = Tensor(Jax.jnp.add(t.jaxValue, other.jaxValue))
 
@@ -351,6 +388,34 @@ object TensorOps:
             kwargsMap = dimSizesMap
           )
         )
+
+      def lift[O <: Tuple : NameOf](newShape: Shape[O])(
+        using ev: Subset[O, T] // Ensures T's axes are all present in O
+      ): Tensor[O] =
+        import me.shadaj.scalapy.py.SeqConverters
+
+        val t = tensor
+        
+        val currentNames = summon[NameOf[T]].names
+        val targetNames = summon[NameOf[O]].names
+        
+        val targetOrder = targetNames.filter(currentNames.contains)
+        val permutation = targetOrder.map(n => currentNames.indexOf(n))
+        
+        val alignedJax = if (permutation != currentNames.indices.toList) {
+          Jax.jnp.transpose(t.jaxValue, permutation.toPythonProxy)
+        } else {
+          t.jaxValue
+        }
+
+        val currentShapeMap = currentNames.zip(t.shape.dimensions).toMap
+        
+        val intermediateShape = targetNames.map { name =>
+          currentShapeMap.getOrElse(name, 1)
+        }
+        
+        val reshapedJax = Jax.jnp.reshape(alignedJax, intermediateShape.toPythonProxy)
+        Tensor(Jax.jnp.broadcast_to(reshapedJax, newShape.dimensions.toPythonProxy))
 
       def as[newT <: Tuple](using 
         newNames: NameOf[UnwrapAxes[newT]],

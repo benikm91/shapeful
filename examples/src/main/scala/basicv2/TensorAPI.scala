@@ -4,6 +4,8 @@ import shapeful.StringMath.*
 import scala.collection.compat.immutable.ArraySeq
 import shapeful.tensorv2.{Axis, AxisIndex, Shape, Tensor0, Tensor1, Tensor2, Tensor, DType, Device}
 import shapeful.tensorv2.TensorOps.*
+import shapeful.tensorv2.TupleHelpers.Subset
+import shapeful.tensorv2.Broadcast
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.PythonException
 
@@ -11,7 +13,7 @@ def opBlock[T](operation: String)(block: => T): Unit =
   val res = block
   block match
     case t: Tensor[?] =>
-      println(f"$operation%-30s: ${t.shape}%-30s == ${py.eval("res.shape")}")
+      println(f"$operation%-30s: ${t.shape}%-30s == ${py.eval("res.shape if hasattr(res, 'shape') else res")}")
     case v =>
       println(f"$operation%-30s: $v%-30s == ${py.eval("res")}")
 
@@ -66,7 +68,8 @@ def tensorAPI(): Unit =
       // ABCD :+ BCD
       // ABCD + BCD.lift(ABCD.shape)
       // ABCD.vmap((Axis["A"])) { _ + BCD }
-      ABCD
+      BCD +: ABCD
+      ABCD :+ BCD
     }
     opBlock("broadcast ABCD + CD") { // Axes broadcasting (backward)
       py.exec("cd = jnp.ones((4,5))")
@@ -99,7 +102,7 @@ def tensorAPI(): Unit =
       catch
         case e: PythonException => 
           py.exec("res = 'Not Supported by JAX'")
-          "Not Supported by shapeful"
+          ABCD :+ AB
     }
     opBlock("broadcast limit: ABCD + BC") { // Axes broadcasting (forward and backward)
       try
