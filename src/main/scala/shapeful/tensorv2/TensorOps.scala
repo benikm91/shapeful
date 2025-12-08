@@ -417,6 +417,12 @@ object TensorOps:
         val reshapedJax = Jax.jnp.reshape(alignedJax, intermediateShape.toPythonProxy)
         Tensor(Jax.jnp.broadcast_to(reshapedJax, newShape.dimensions.toPythonProxy))
 
+      def relabel[OldLabel <: Label : ValueOf, NewLabel <: Label : ValueOf](
+        axis: (Axis[OldLabel], Axis[NewLabel]),
+      )(
+        using replacer: Replacer[T, OldLabel, NewLabel],
+      ): Tensor[replacer.Out] = Tensor(tensor.jaxValue)
+
       def as[newT <: Tuple](using 
         newNames: NameOf[UnwrapAxes[newT]],
         @implicitNotFound("Cannot convert tensor of shape ${T} to shape ${newT} due to size mismatch.")

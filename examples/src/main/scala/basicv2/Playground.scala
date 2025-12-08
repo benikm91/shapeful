@@ -346,3 +346,30 @@ import shapeful.tensorv2.Axis.UnwrapAxes
     )(v)
     println(x2)
   }
+  {
+    // attention mechanism example
+    val X = Tensor.ones(
+      Shape(Axis["Batch"] -> 32, Axis["Sequence"] -> 128, Axis["Features"] -> 64)
+    )
+    val WK = Tensor.ones(
+      Shape(Axis["Features"] -> 64, Axis["Key"] -> 64) // <-- Here "Key" instead of "MatchDim"
+    )
+    val WQ = Tensor.ones(
+      Shape(Axis["Features"] -> 64, Axis["Query"] -> 64) // <-- Here "Query" instead of "MatchDim"
+    )
+    val WV = Tensor.ones(
+      Shape(Axis["Features"] -> 64, Axis["Features"] -> 64)
+    )
+    val Xnew = X.vmap(Axis["Batch"]) { Xi => 
+      val K = Xi.contract(Axis["Features"])(WK)
+      val Q = Xi.contract(Axis["Features"])(WQ)
+      val V = Xi.contract(Axis["Features"])(WV)
+      // <-- Here we must relabel "Query" to "MatchDim" to match K's "Key" axis
+      val AttnWeights = Q.relabel(Axis["Query"] -> Axis["MatchDim"])
+        .contract(Axis["MatchDim"])(K.relabel(Axis["Key"] -> Axis["MatchDim"]))
+      // val AttnWeights = Q.contract(Axis["Key"] | Axis["Query"])(K) // Vorschlag für relabeling syntax sugar.
+      AttnWeights.contract(Axis["Sequence"])(V) // <-- correct? As two sequence axes in AttnWeights!
+    }
+    
+    
+  }

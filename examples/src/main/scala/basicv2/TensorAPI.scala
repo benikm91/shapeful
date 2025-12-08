@@ -381,10 +381,16 @@ def tensorAPI(): Unit =
         ( Axis["A"] -> ABCD.shape.dim(Axis["A"]), Axis["B"] -> ABCD.shape.dim(Axis["B"]) )
       )
     }
-    /** AS - rename axes labels */
+    /** AS / RELABEL - rename axes labels */
     opBlock("as AB to XY") {
       py.exec("res = ab  # no equivalent in JAX, as axes are not named") 
       AB.as[(Axis["X"], Axis["Y"])]
+    }
+    opBlock("relabel AB to XB") {
+      py.exec("res = ab  # no equivalent in JAX, as axes are not named") 
+      AB.relabel(
+        Axis["A"] -> Axis["X"]
+      )
     }
     /** SWAP */
     opBlock("swap AB axes A and B") {
