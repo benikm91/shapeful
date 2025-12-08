@@ -176,6 +176,23 @@ object TensorOps:
 
       def contract[
           ContractAxis <: Label : ValueOf,
+          OtherContractAxis <: Label : ValueOf,
+          OtherShape <: Tuple : NameOf,
+      ]
+      (axes: (Axis[ContractAxis], Axis[OtherContractAxis]))
+      (other: Tensor[OtherShape])(using
+        replacer: Replacer[T, ContractAxis, OtherContractAxis],
+        remover: Remover[replacer.Out, OtherContractAxis],
+        otherRemover: Remover[OtherShape, OtherContractAxis],
+        axisIndex: AxisIndex[replacer.Out, OtherContractAxis],
+        otherAxisIndex: AxisIndex[OtherShape, OtherContractAxis],
+      ): Tensor[Tuple.Concat[remover.Out, otherRemover.Out]] = 
+        val (thisAxes, otherAxis) = axes
+        val tensorRenamed = tensor.relabel(thisAxes -> otherAxis)
+        tensorRenamed.contract[OtherContractAxis, OtherShape](otherAxis)(other)
+
+      def contract[
+          ContractAxis <: Label : ValueOf,
           OtherShape <: Tuple : NameOf,
       ]
       (axis: Axis[ContractAxis])

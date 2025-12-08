@@ -347,29 +347,72 @@ import shapeful.tensorv2.Axis.UnwrapAxes
     println(x2)
   }
   {
+    def softmax[L <: Label : ValueOf](tensor: Tensor1[L]): Tensor1[L] =
+      val expTensor = tensor.exp
+      val sumExp = expTensor.sum
+      expTensor.vmap(Axis[L]) { _ / sumExp }
+
     // attention mechanism example
     val X = Tensor.ones(
-      Shape(Axis["Batch"] -> 32, Axis["Sequence"] -> 128, Axis["Features"] -> 64)
+      Shape(Axis["Batch"] -> 32, Axis["Sequence"] -> 128, Axis["Value"] -> 64)
     )
     val WK = Tensor.ones(
-      Shape(Axis["Features"] -> 64, Axis["Key"] -> 64) // <-- Here "Key" instead of "MatchDim"
+      Shape(Axis["Value"] -> 64, Axis["Key"] -> 64)
     )
     val WQ = Tensor.ones(
-      Shape(Axis["Features"] -> 64, Axis["Query"] -> 64) // <-- Here "Query" instead of "MatchDim"
+      Shape(Axis["Value"] -> 64, Axis["Query"] -> 64)
     )
     val WV = Tensor.ones(
-      Shape(Axis["Features"] -> 64, Axis["Features"] -> 64)
+      Shape(Axis["Value"] -> 64, Axis["NewValue"] -> 64)
     )
     val Xnew = X.vmap(Axis["Batch"]) { Xi => 
-      val K = Xi.contract(Axis["Features"])(WK)
-      val Q = Xi.contract(Axis["Features"])(WQ)
-      val V = Xi.contract(Axis["Features"])(WV)
-      // <-- Here we must relabel "Query" to "MatchDim" to match K's "Key" axis
-      val AttnWeights = Q.relabel(Axis["Query"] -> Axis["MatchDim"])
-        .contract(Axis["MatchDim"])(K.relabel(Axis["Key"] -> Axis["MatchDim"]))
-      // val AttnWeights = Q.contract(Axis["Key"] | Axis["Query"])(K) // Vorschlag für relabeling syntax sugar.
-      AttnWeights.contract(Axis["Sequence"])(V) // <-- correct? As two sequence axes in AttnWeights!
+      val K = Xi.contract(Axis["Value"])(WK)
+      val Q = Xi.contract(Axis["Value"])(WQ)
+      val V = Xi.contract(Axis["Value"])(WV)
+      val AttnWeights = Q.contract(Axis["Query"] -> Axis["Key"])(K)
+        .as[(Axis["Sequence"], Axis["Weights"])]
+        .vmap(Axis["Sequence"])(softmax)
+      val res = AttnWeights.contract(Axis["Weights"] -> Axis["Sequence"])(V)
+      res.relabel(Axis["NewValue"] -> Axis["Value"])
     }
-    
+    println(Xnew.shape)
+    /* 
+    Maybe new syntax to allow operations with different contraction axes?
+    X(Axis["Batch"]).vapply(...)                  vs. X.vapply(Axis["Batch"]) { ... }
+    X(Axis["Batch"]).vmap(...)                    vs. X.vmap(Axis["Batch"]) { ... }
+    Q(Axis["Query"]).contract(K(Axis["Key"])))    vs. Q.contract(Axis["Query"])(K.relabel(Axis["Key"] -> Axis["Query"]))
+    Q(Axis["Query"]).sum                          vs. Q.sum(Axis["Query"])
+    A.contract(B) // would be outerProduct
+    Einstein summation notation
+    Q_qk = X_v WQ_vq
+    K_kv = X_v WK_vk
+    V_vn = X_v WV_vn
+    A_qk = Q_q K_k
+    A_weights = softmax(A_qk)
+    Res_bn = A_weights_qk V_kn
+    val X = Tensor.ones(
+      Shape(Axis["Batch"] -> 32, Axis["Sequence"] -> 128, Axis["Values"] -> 64)
+    )
+    val WK = Tensor.ones(
+      Shape(Axis["Values"] -> 64, Axis["Key"] -> 64)
+    )
+    val WQ = Tensor.ones(
+      Shape(Axis["Values"] -> 64, Axis["Query"] -> 64)
+    )
+    val WV = Tensor.ones(
+      Shape(Axis["Values"] -> 64, Axis["NewValues"] -> 64)
+    )
+    val Xnew = X.vmap(Axis["Batch"]) { Xi => 
+      val K = Xi(Axis["Values"]).contract(WK(Axis["Values"]))
+      val Q = Xi(Axis["Values"]).contract(WQ(Axis["Values"]))
+      val V = Xi(Axis["Values"]).contract(WV(Axis["Values"]))
+      val AttnMatrix = Q(Axis["Query"]).contract(K(Axis["Key"]))
+      val AttnWeights = AttnMatrix.as[(Axis["Sequence"], Axis["Weights"])].vmap(Axis["Sequence"]){ weights =>
+        softmax(weights)
+      }
+      val res = AttnWeights(Axis["Weights"]).contract(V(Axis["Sequence"]))
+      res.relabel(Axis["NewValues"] -> Axis["Values"])
+    }
+     */
     
   }
