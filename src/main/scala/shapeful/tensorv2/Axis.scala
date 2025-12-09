@@ -7,7 +7,7 @@ import scala.compiletime.error
 
 object Axis:
   def apply[A <: Label]: Axis[A] = 
-    new AxisImpl[A]()
+    new Axis[A]()
 
   type UnwrapAxes[T <: Tuple] <: Tuple = T match
     case EmptyTuple => EmptyTuple
@@ -19,8 +19,19 @@ object Axis:
   * Represents an axis with label A.
   * This maps the type-level label to a runtime representation.
   */
-sealed trait Axis[A <: Label]
-class AxisImpl[A <: Label] extends Axis[A]
+sealed class Axis[A <: Label]
+class Contra[A <: Label] extends Axis[A]
+class Co[A <: Label] extends Axis[A]
+
+object Contra:
+  def apply[A <: Label]: Contra[A] = 
+    new Contra[A]()
+
+object Co:
+  def apply[A <: Label]: Co[A] = 
+    new Co[A]()
+
+// class AxisImpl[A <: Label] extends Axis[A]
 
 trait AxisIndex[Shape <: Tuple, AxisLabel]:
   def value: Int

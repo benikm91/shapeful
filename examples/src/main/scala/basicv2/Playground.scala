@@ -7,6 +7,7 @@ import shapeful.tensorv2.{Axis, AxisIndex, Shape, Tensor1, Tensor2, Tensor, DTyp
 import shapeful.tensorv2.TensorOps.*
 import shapeful.tensorv2.TupleHelpers.{Remover, RemoverAll}
 import shapeful.tensorv2.Axis.UnwrapAxes
+import shapeful.tensorv2.TupleHelpers.Replacer
 
 
 @main def playground(): Unit =
@@ -347,33 +348,126 @@ import shapeful.tensorv2.Axis.UnwrapAxes
     println(x2)
   }
   {
+    object Tmp:
+
+      extension [T <: Tuple : NameOf](tensor: Tensor[T])
+
+        def linearmap[
+            ContractAxis <: Label : ValueOf,
+            OtherContractAxis <: Label : ValueOf,
+            OtherShape <: Tuple : NameOf,
+        ]
+        (axes: (Axis[ContractAxis], Axis[OtherContractAxis]))
+        (other: Tensor[OtherShape])(using
+          replacer: Replacer[T, ContractAxis, OtherContractAxis],
+          remover: Remover[replacer.Out, OtherContractAxis],
+          otherRemover: Remover[OtherShape, OtherContractAxis],
+          axisIndex: AxisIndex[replacer.Out, OtherContractAxis],
+          otherAxisIndex: AxisIndex[OtherShape, OtherContractAxis],
+        ): Tensor[Tuple.Concat[remover.Out, otherRemover.Out]] = tensor.contract(axes)(other)
+
+        def linearmap[
+            ContractAxis <: Label : ValueOf,
+            OtherShape <: Tuple : NameOf,
+        ]
+        (axis: Axis[ContractAxis])
+        (other: Tensor[OtherShape])(using
+          remover: Remover[T, ContractAxis],
+          otherRemover: Remover[OtherShape, ContractAxis],
+          axisIndex: AxisIndex[T, ContractAxis],
+          otherAxisIndex: AxisIndex[OtherShape, ContractAxis],
+        ): Tensor[Tuple.Concat[remover.Out, otherRemover.Out]] = tensor.contract(axis)(other)
+
+        def align[
+            ContractAxis <: Label : ValueOf,
+            OtherContractAxis <: Label : ValueOf,
+            OtherShape <: Tuple : NameOf,
+        ]
+        (axes: (Axis[ContractAxis], Axis[OtherContractAxis]))
+        (other: Tensor[OtherShape])(using
+          replacer: Replacer[T, ContractAxis, OtherContractAxis],
+          remover: Remover[replacer.Out, OtherContractAxis],
+          otherRemover: Remover[OtherShape, OtherContractAxis],
+          axisIndex: AxisIndex[replacer.Out, OtherContractAxis],
+          otherAxisIndex: AxisIndex[OtherShape, OtherContractAxis],
+        ): Tensor[Tuple.Concat[remover.Out, otherRemover.Out]] = tensor.contract(axes)(other)
+
+        def align[
+            ContractAxis <: Label : ValueOf,
+            OtherShape <: Tuple : NameOf,
+        ]
+        (axis: Axis[ContractAxis])
+        (other: Tensor[OtherShape])(using
+          remover: Remover[T, ContractAxis],
+          otherRemover: Remover[OtherShape, ContractAxis],
+          axisIndex: AxisIndex[T, ContractAxis],
+          otherAxisIndex: AxisIndex[OtherShape, ContractAxis],
+        ): Tensor[Tuple.Concat[remover.Out, otherRemover.Out]] = tensor.contract(axis)(other)
+
+        def mix[
+            ContractAxis <: Label : ValueOf,
+            OtherContractAxis <: Label : ValueOf,
+            OtherShape <: Tuple : NameOf,
+        ]
+        (axes: (Axis[ContractAxis], Axis[OtherContractAxis]))
+        (other: Tensor[OtherShape])(using
+          replacer: Replacer[T, ContractAxis, OtherContractAxis],
+          remover: Remover[replacer.Out, OtherContractAxis],
+          otherRemover: Remover[OtherShape, OtherContractAxis],
+          axisIndex: AxisIndex[replacer.Out, OtherContractAxis],
+          otherAxisIndex: AxisIndex[OtherShape, OtherContractAxis],
+        ): Tensor[Tuple.Concat[remover.Out, otherRemover.Out]] = tensor.contract(axes)(other)
+
+        def mix[
+            ContractAxis <: Label : ValueOf,
+            OtherShape <: Tuple : NameOf,
+        ]
+        (axis: Axis[ContractAxis])
+        (other: Tensor[OtherShape])(using
+          remover: Remover[T, ContractAxis],
+          otherRemover: Remover[OtherShape, ContractAxis],
+          axisIndex: AxisIndex[T, ContractAxis],
+          otherAxisIndex: AxisIndex[OtherShape, ContractAxis],
+        ): Tensor[Tuple.Concat[remover.Out, otherRemover.Out]] = tensor.contract(axis)(other)
+
+    
+    import Tmp.*
+
     def softmax[L <: Label : ValueOf](tensor: Tensor1[L]): Tensor1[L] =
       val expTensor = tensor.exp
       val sumExp = expTensor.sum
       expTensor.vmap(Axis[L]) { _ / sumExp }
 
     // attention mechanism example
+    import shapeful.tensorv2.{Contra, Co}
     val X = Tensor.ones(
-      Shape(Axis["Batch"] -> 32, Axis["Sequence"] -> 128, Axis["Value"] -> 64)
+      Shape(Contra["Batch"] -> 32, Contra["Sequence"] -> 128, Co["Value"] -> 64)
     )
     val WK = Tensor.ones(
-      Shape(Axis["Value"] -> 64, Axis["Key"] -> 64)
+      Shape(Co["Value"] -> 64, Co["Key"] -> 64)
     )
     val WQ = Tensor.ones(
-      Shape(Axis["Value"] -> 64, Axis["Query"] -> 64)
+      Shape(Co["Value"] -> 64, Co["Query"] -> 64)
     )
     val WV = Tensor.ones(
-      Shape(Axis["Value"] -> 64, Axis["NewValue"] -> 64)
+      Shape(Co["Value"] -> 64, Co["NewValue"] -> 64)
     )
-    val Xnew = X.vmap(Axis["Batch"]) { Xi => 
-      val K = Xi.contract(Axis["Value"])(WK)
-      val Q = Xi.contract(Axis["Value"])(WQ)
-      val V = Xi.contract(Axis["Value"])(WV)
-      val AttnWeights = Q.contract(Axis["Query"] -> Axis["Key"])(K)
-        .as[(Axis["Sequence"], Axis["Weights"])]
-        .vmap(Axis["Sequence"])(softmax)
-      val res = AttnWeights.contract(Axis["Weights"] -> Axis["Sequence"])(V)
-      res.relabel(Axis["NewValue"] -> Axis["Value"])
+    val Xnew = X.vmap(Contra["Batch"]) { Xi => 
+      val K = Xi.linearmap(Co["Value"])(WK)
+      val Q = Xi.linearmap(Co["Value"])(WQ)
+      val V = Xi.linearmap(Co["Value"])(WV)
+      val AttnWeights = Q.align(Co["Query"] -> Co["Key"])(K)
+        .as[(Contra["Sequence"], Contra["Weights"])]
+        // .vmap(Contra["Sequence"])(softmax)
+      println((AttnWeights.shape, V.shape))
+      val res = AttnWeights.mix(Contra["Weights"] -> Contra["Sequence"])(V)
+      
+      /*val res2 = AttnWeights.vmap(Contra["Sequence"]) { weights => 
+        zipvmap(Contra["Sequence"])((weights.relabel(Contra["Weights"] -> Contra["Sequence"]), V)) {
+          case (w, v) => v * w
+        }.sum(Contra["Sequence"])
+      }*/
+      res //.relabel(Contra["NewValue"] -> Contra["Value"])
     }
     println(Xnew.shape)
     /* 
