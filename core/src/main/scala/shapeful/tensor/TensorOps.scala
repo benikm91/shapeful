@@ -82,7 +82,6 @@ object TensorOps:
       def tanh: Tensor[T] = Tensor(Jax.jnp.tanh(t.jaxValue))
 
       // --- Clipping ---
-      def clip(min: Float, max: Float): Tensor[T] = Tensor(Jax.jnp.clip(t.jaxValue, min, max))
       def clip(min: Tensor0, max: Tensor0): Tensor[T] = Tensor(Jax.jnp.clip(t.jaxValue, min.jaxValue, max.jaxValue))
 
       // --- Comparison ---
@@ -90,7 +89,8 @@ object TensorOps:
       def <=(other: Tensor[T]): Tensor[T] = Tensor(Jax.jnp.less_equal(t.jaxValue, other.jaxValue))
       def >(other: Tensor[T]): Tensor[T] = Tensor(Jax.jnp.greater(t.jaxValue, other.jaxValue))
       def >=(other: Tensor[T]): Tensor[T] = Tensor(Jax.jnp.greater_equal(t.jaxValue, other.jaxValue))
-      
+      def ==(other: Tensor[T]): Tensor[T] = Tensor(Jax.jnp.equal(t.jaxValue, other.jaxValue))
+
       def elementEquals(other: Tensor[T]): Tensor[T] =
         require(t.shape.dimensions == other.shape.dimensions, s"Shape mismatch: ${t.shape.dimensions} vs ${other.shape.dimensions}")
         Tensor(jaxValue = Jax.jnp.equal(t.jaxValue, other.jaxValue))

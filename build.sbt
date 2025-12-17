@@ -19,7 +19,10 @@ lazy val core = (project in file("core"))
     name := "core",
     libraryDependencies ++= Seq(
       "dev.scalapy" %% "scalapy-core" % "0.5.3",
-      "org.scalameta" %% "munit" % "1.0.0" % Test
+      // "org.scalameta" %% "munit" % "1.2.0" % Test,
+      // "org.scalameta" %% "munit-scalacheck" % "1.2.0" % Test,
+      "org.scalatest" %% "scalatest" % "3.2.19" % Test,
+      "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
     ),
     fork := true,
   )
