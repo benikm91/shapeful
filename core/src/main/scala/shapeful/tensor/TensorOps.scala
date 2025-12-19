@@ -140,7 +140,7 @@ object TensorOps:
 
       def all: Boolean = Tensor0(Jax.jnp.all(t.jaxValue)).toBool
       def any: Boolean = Tensor0(Jax.jnp.any(t.jaxValue)).toBool
-      def ==(other: Tensor[T]): Boolean = Tensor0(Jax.jnp.equal(t.jaxValue, other.jaxValue)).toBool
+      def equals(other: Tensor[T]): Boolean = Tensor0(Jax.jnp.equal(t.jaxValue, other.jaxValue)).toBool
       def approxEquals(other: Tensor[T], tolerance: Float = 1e-6f): Boolean = t.approxElementEquals(other, tolerance).all
       
   end Reduction

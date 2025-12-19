@@ -29,7 +29,7 @@ object TensorGen:
   def twoSameTensor0GenOf(min: Float, max: Float): Gen[(Tensor0, Tensor0)] = 
     for { 
       t1 <- tensor0GenOfShape(min, max) 
-    } yield (t1, t1)
+    } yield (t1, Tensor.fromPy(t1.jaxValue))
 
   def tensor0GenOfShape(min: Float, max: Float): Gen[Tensor0] = 
     for {
@@ -56,7 +56,7 @@ object TensorGen:
     for { 
       len  <- Gen.choose(1, 100)
       t1 <- tensor1GenOfShape(len)(min, max) 
-    } yield (t1, t1)
+    } yield (t1, Tensor.fromPy(t1.jaxValue))
 
   def tensor1GenOfShape(d1: Int)(min: Float, max: Float): Gen[Tensor1[A]] = 
     for {
@@ -93,7 +93,7 @@ object TensorGen:
       rows <- Gen.choose(1, 10)
       cols <- Gen.choose(1, 10)
       t1 <- tensor2GenOfShape(rows, cols)(min, max)
-    } yield (t1, t1)
+    } yield (t1, Tensor.fromPy(t1.jaxValue))
 
   def tensor2GenOfShape(d1: Int, d2: Int)(min: Float, max: Float): Gen[Tensor2[A, B]] = 
     for {
@@ -126,7 +126,7 @@ object TensorGen:
       d2 <- Gen.choose(1, 5)
       d3 <- Gen.choose(1, 5)
       t1 <- tensor3GenOfShape(d1, d2, d3)(min, max)
-    } yield (t1, t1)
+    } yield (t1, Tensor.fromPy(t1.jaxValue))
   
   def tensor3GenOfShape(d1: Int, d2: Int, d3: Int)(min: Float, max: Float): Gen[Tensor3[A, B, C]] = 
     for {
