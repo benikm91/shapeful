@@ -1,6 +1,7 @@
 package examples.api
 
 import shapeful.*
+import shapeful.Conversions.given
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.PythonException
 

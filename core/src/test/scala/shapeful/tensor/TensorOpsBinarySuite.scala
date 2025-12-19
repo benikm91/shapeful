@@ -7,7 +7,7 @@ import org.scalacheck.{Arbitrary, Gen}
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
 import TensorGen.*
-
+import TestUtil.*
 import org.scalatest.propspec.AnyPropSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
@@ -20,7 +20,7 @@ class TensorOpsBinarySuite extends AnyPropSpec with ScalaCheckPropertyChecks wit
     property(s"$suffix Tensor[${summon[Labels[T]].names.mkString(", ")}]"):
       forAll(gen): (t1, t2) => 
         val (py, sc) = pythonScalaBinaryOps(t1, t2)(pyCode, scOp)
-        assert(py `approxEquals` sc)
+        py should approxEqual(sc)
 
   checkBinaryOps(twoTensor0Gen, "+")("t1 + t2", _ + _)
   checkBinaryOps(twoTensor1Gen, "+")("t1 + t2", _ + _)

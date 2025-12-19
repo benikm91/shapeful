@@ -89,16 +89,11 @@ object TensorOps:
       def <=(other: Tensor[T]): Tensor[T] = Tensor(Jax.jnp.less_equal(t.jaxValue, other.jaxValue))
       def >(other: Tensor[T]): Tensor[T] = Tensor(Jax.jnp.greater(t.jaxValue, other.jaxValue))
       def >=(other: Tensor[T]): Tensor[T] = Tensor(Jax.jnp.greater_equal(t.jaxValue, other.jaxValue))
-      def ==(other: Tensor[T]): Tensor[T] = Tensor(Jax.jnp.equal(t.jaxValue, other.jaxValue))
-
+      
       def elementEquals(other: Tensor[T]): Tensor[T] =
         require(t.shape.dimensions == other.shape.dimensions, s"Shape mismatch: ${t.shape.dimensions} vs ${other.shape.dimensions}")
         Tensor(jaxValue = Jax.jnp.equal(t.jaxValue, other.jaxValue))
 
-      def all: Boolean = Tensor0(Jax.jnp.all(t.jaxValue)).toBool
-      def any: Boolean = Tensor0(Jax.jnp.any(t.jaxValue)).toBool
-
-      def approxEquals(other: Tensor[T], tolerance: Float = 1e-6f): Boolean = approxElementEquals(other, tolerance).all
       def approxElementEquals(other: Tensor[T], tolerance: Float = 1e-6f): Tensor[T] =
         Tensor(Jax.jnp.allclose(
           t.jaxValue,
@@ -142,6 +137,11 @@ object TensorOps:
       
       def argmin: Tensor0 = Tensor0(Jax.jnp.argmin(t.jaxValue))
       def argmin[L : Label](axis: Axis[L])(using axisIndex: AxisIndex[T, L], remover: Remover[T, L]): Tensor[remover.Out] = Tensor(Jax.jnp.argmin(t.jaxValue, axis = axisIndex.value))
+
+      def all: Boolean = Tensor0(Jax.jnp.all(t.jaxValue)).toBool
+      def any: Boolean = Tensor0(Jax.jnp.any(t.jaxValue)).toBool
+      def ==(other: Tensor[T]): Boolean = Tensor0(Jax.jnp.equal(t.jaxValue, other.jaxValue)).toBool
+      def approxEquals(other: Tensor[T], tolerance: Float = 1e-6f): Boolean = t.approxElementEquals(other, tolerance).all
       
   end Reduction
 
@@ -400,7 +400,6 @@ object TensorOps:
           val names = newNames.toSeq
         val (before, after) = tensor.shape.dimensions.splitAt(splitIdx)
         val newShape = before ++ Seq(interval, after.head / interval) ++ after.drop(1)
-        println(newShape)
         Tensor(
           Jax.jnp.reshape(
             tensor.jaxValue,

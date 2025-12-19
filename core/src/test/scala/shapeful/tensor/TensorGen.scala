@@ -8,6 +8,7 @@ object TensorGen:
   type A = "a"
   type B = "b"
   type C = "c"
+  type D = "d"
 
   def genData(n: Int)(min: Float, max: Float): Gen[Array[Float]] = Gen.listOfN(n, Gen.choose(min, max)).map(_.toArray)
 

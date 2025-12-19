@@ -8,6 +8,10 @@ ThisBuild / organization := "ch.contrafactus"
 // Add resolver for snapshot dependencies
 ThisBuild / resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
 
+ThisBuild / envVars := Map(
+  "PYTHONPATH" -> ((ThisBuild / baseDirectory).value / "src" / "python").getAbsolutePath
+)
+
 lazy val root = (project in file("."))
   .aggregate(core, nn, examples)
   .settings(
@@ -45,7 +49,6 @@ lazy val examples = (project in file("examples"))
       "io.github.quafadas" %% "scautable" % "0.0.28"
     ),
     fork := true,
-    envVars := Map("PYTHONPATH" -> (baseDirectory.value.getParentFile / "src" / "python").getAbsolutePath),
     // Don't publish examples
     publish := {},
     publishLocal := {},
