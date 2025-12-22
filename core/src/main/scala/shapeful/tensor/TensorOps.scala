@@ -314,18 +314,14 @@ object TensorOps:
         case h *: EmptyTuple => h
         case h *: t => Op[h, TupleReduce[t, Op]]
 
-      type TupleCombine[T <: Tuple] = T match
-        case EmptyTuple => EmptyTuple
-        case h *: EmptyTuple => h
-        case h *: (h2 *: EmptyTuple) => h |*| h2
-        case h *: t => h |*| TupleCombine[t]
-
       type TupleUnion[T <: Tuple] = T match
         case EmptyTuple => EmptyTuple
         case h *: EmptyTuple => h
         case h *: t => h | TupleUnion[t]
 
-      type JoinNames[T <: Tuple] = TupleCombine[T]
+      type FoldLeft[T <: Tuple, Z, F[_, _]] = T match
+        case EmptyTuple => Z
+        case h *: t     => FoldLeft[t, F[Z, h], F]
 
       trait DimExtractor[T]:
         def extract(t: T): Map[String, Int]
@@ -593,8 +589,8 @@ object TensorOps:
             }
         Tensor(Jax.jnp.swapaxes(tensor.jaxValue, axisIndex1.value, axisIndex2.value))
 
-      def ravel: Tensor1[JoinNames[T]] = 
-        given Labels[Tuple1[JoinNames[T]]] with
+      def ravel: Tensor1[FoldLeft[Tuple.Tail[T], Tuple.Head[T], |*|]] = 
+        given Labels[Tuple1[FoldLeft[Tuple.Tail[T], Tuple.Head[T], |*|]]] with
           def names = List(summon[Labels[T]].names.mkString("*"))
         Tensor(Jax.jnp.ravel(tensor.jaxValue))
 

@@ -98,6 +98,7 @@ object TensorGen:
       t1 <- tensor2GenOfShape(rows, cols)(min, max)
     } yield (t1, Tensor.fromPy(t1.jaxValue))
 
+  def tensor2GenWithShape(d1: Int, d2: Int): Gen[Tensor2[A, B]] = tensor2GenOfShape(d1, d2)(-1.0f, 1.0f)
   def tensor2GenOfShape(d1: Int, d2: Int)(min: Float, max: Float): Gen[Tensor2[A, B]] = 
     for {
       data <- genData(d1 * d2)(min, max)
