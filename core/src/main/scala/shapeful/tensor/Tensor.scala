@@ -74,6 +74,9 @@ object Tensor:
       .reshape(shape.dimensions.toPythonProxy)
     Tensor(jaxValues)
 
+  def const(value: Float)[T <: Tuple : Labels](shape: Shape[T], dtype: DType = DType.Float32): Tensor[T] =
+    Tensor(Jax.jnp.full(shape.dimensions.toPythonProxy, value, dtype = dtype.jaxType))
+
   def zeros[T <: Tuple : Labels](shape: Shape[T], dtype: DType = DType.Float32): Tensor[T] =
     Tensor(Jax.jnp.zeros(shape.dimensions.toPythonProxy, dtype = dtype.jaxType))
 

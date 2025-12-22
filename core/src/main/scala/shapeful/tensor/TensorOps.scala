@@ -281,7 +281,7 @@ object TensorOps:
         case A *: tail => A *: B *: tail
         case h *: tail => h *: InsertAfter[tail, A, B]
 
-      type SliceIndex = Int | List[Int] | Range
+      type SliceIndex = Int | List[Int] | Range | Tensor0
       type ExtractLabel[X] = X match
           case (Axis[l], SliceIndex) => l
       type ExtractLabels[Inputs <: Tuple] = Tuple.Map[Inputs, ExtractLabel]
@@ -297,6 +297,11 @@ object TensorOps:
           tailExt: SliceLabelExtractor[Tail, TailOut]
         ): SliceLabelExtractor[(Axis[L], Int) *: Tail, L *: TailOut] = 
           new SliceLabelExtractor[(Axis[L], Int) *: Tail, L *: TailOut] {}
+
+        given consTensor0[L, Tail <: Tuple, TailOut <: Tuple](using
+          tailExt: SliceLabelExtractor[Tail, TailOut]
+        ): SliceLabelExtractor[(Axis[L], Tensor0) *: Tail, L *: TailOut] = 
+          new SliceLabelExtractor[(Axis[L], Tensor0) *: Tail, L *: TailOut] {}
 
         given consSeq[L, SeqT <: Seq[Int], Tail <: Tuple, TailOut <: Tuple](using
           tailExt: SliceLabelExtractor[Tail, TailOut]
@@ -354,6 +359,9 @@ object TensorOps:
         Tensor(Jax.jnp.where(condition.jaxValue, x.jaxValue, y.jaxValue))
     
     export TensorWhere.where
+
+    def triu[T <: Tuple : Labels](tensor: Tensor[T], k: Int = 0): Tensor[T] =
+      Tensor(Jax.jnp.triu(tensor.jaxValue, k = k))
 
     def stack[L : Label, T <: Tuple : Labels](
       tensors: Seq[Tensor[T]], 
@@ -473,6 +481,19 @@ object TensorOps:
         labels: Labels[R],
       ): Tensor[R] = slice(Tuple1(axisWithSliceIndex))
 
+      def gather[L1, L2: Label, R <: Tuple](
+          axis: Axis[L1]
+      )(
+          indices: Tensor1[L2],
+        )(using
+          axisIndex: AxisIndex[T, L1],
+          remover: Remover.Aux[T, L1, R],
+          labels: Labels[R],
+        ): Tensor[Tuple.Concat[Tuple1[L2], R]] =
+          import Labels.ForConcat.given
+          val result = Jax.jnp.take(tensor.jaxValue, indices.jaxValue, axis = axisIndex.value)
+          Tensor(result)
+        
       def set[Inputs <: Tuple, LabelsToRemove <: Tuple, R <: Tuple](
         inputs: Inputs
       )(using 

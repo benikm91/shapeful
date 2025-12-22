@@ -137,21 +137,38 @@ case class GPT2(params: GPT2Params):
         private val projection = LinearLayer(params.proj)
         
         def apply(X : Tensor2[Context, Embedding]): Tensor2[Context, Embedding] =
-            val heads = zipvmap(Axis[Heads])(params.WQ, params.WK, params.WV): (wqi, wki, wvi) =>
-                attention(wqi, wki, wvi)(X)
+            val heads = zipvmap(Axis[Heads])(
+                params.WQ, params.WQBias,
+                params.WK, params.WKBias,
+                params.WV, params.WVBias,
+            ): (wqi, wqbi, wki, wkbi, wvi, wvbi) =>
+                attention(wqi, wqbi, wki, wkbi, wvi, wvbi)(X)
             heads.vmap(Axis[Context])(heads => projection(heads.ravel))
 
         private def attention(
-            wq : Tensor2[Embedding, Query], 
-            wk : Tensor2[Embedding, Key], 
-            wv : Tensor2[Embedding, Value])
+            wq: Tensor2[Embedding, Query], 
+            wqb: Tensor1[Query],
+            wk: Tensor2[Embedding, Key], 
+            wkb: Tensor1[Key],
+            wv: Tensor2[Embedding, Value],
+            wvb: Tensor1[Value])
         (x : Tensor2[Context, Embedding]): Tensor2[Context, Value] =
+            def causalMasking(attnScores: Tensor2[Context, Prime[Context]]): Tensor2[Context, Prime[Context]] =
+                val ctxLength = attnScores.shape(Axis[Context])
+                val negInf = Float.NegativeInfinity
+                import shapeful.jax.Jax
+                val mask = triu(
+                    Tensor.const(negInf)(Shape((Axis[Context] -> ctxLength, Axis[Prime[Context]] -> ctxLength))),
+                    k = 1
+                )
+                attnScores + mask
             trait AttnWeights derives Label
-            val q = x.contract(Axis[Embedding])(wq)
-            val k = x.contract(Axis[Embedding])(wk)
-            val v = x.contract(Axis[Embedding])(wv)
+            val q = x.contract(Axis[Embedding])(wq) :+ wqb
+            val k = x.contract(Axis[Embedding])(wk) :+ wkb
+            val v = x.contract(Axis[Embedding])(wv) :+ wvb
             val dk = Tensor0(Math.sqrt(k.shape(Axis[Key])).toFloat)
-            val attnWeights = (q.contract(Axis[Query ~ Key])(k) :/ dk)
+            val attnScores = (q.contract(Axis[Query ~ Key])(k) :/ dk)
+            val attnWeights = causalMasking(attnScores)
                 .vmap(Axis[Context])(x => softmax(x).relabelTo(Axis[AttnWeights]))
             val result = attnWeights.contract(Axis[AttnWeights ~ Context])(v)
             result
@@ -196,9 +213,7 @@ case class GPT2(params: GPT2Params):
     // type Int32Tensor1[L <: String] = Tensor1[L] { type DType = DType.UInt32.type }
 
     private def embedder(tokens: Tensor1[Context]): Tensor2[Context, Embedding] =
-        tokens.vmap(Axis[Context])(token => 
-            params.wte.slice(Axis[Vocab] -> token.toInt)
-        )
+        params.wte.gather(Axis[Vocab])(tokens.asType(DType.Int32))
 
     private def addPositionEncoding(embeddings: Tensor2[Context, Embedding]): Tensor2[Context, Embedding] = 
         embeddings + params.wpe
@@ -235,19 +250,21 @@ case class Tokenizer(enc: py.Dynamic):
 case class Inference(gpt2: GPT2, tokenizer: Tokenizer):
 
     def apply(input: String): LazyList[String] = 
+        println(s"Start inference for input: \"$input\"")
         val tokenIds = tokenizer.encode(input)
-        def loop(currentTokens: List[Int]): LazyList[String] = 
-            println(s"Current tokens: $currentTokens")
+        def loop(currentTokenIds: List[Int]): LazyList[String] = 
+            println(s"Current Token Ids: $currentTokenIds")
+            val paddedTokenIds = currentTokenIds ++ List.fill(1024 - currentTokenIds.length)(0)
             val inputTensor = Tensor(
-                Shape((Axis[Batch] -> 1, Axis[Context] -> currentTokens.length)),
-                currentTokens.map(_.toFloat).toArray,
+                Shape((Axis[Batch] -> 1, Axis[Context] -> paddedTokenIds.length)),
+                paddedTokenIds.map(_.toFloat).toArray,
                 // DType.Int32,
             )
-            val nextTokenTensor = gpt2(inputTensor)
-            val nextTokenId = nextTokenTensor.slice(Axis[Batch] -> 0).slice(Axis[Context] -> (currentTokens.length - 1)).toInt
-            val newTokens = currentTokens :+ nextTokenId
-            val decoded = tokenizer.decode(newTokens)
-            LazyList.cons(decoded, loop(newTokens))
+            val predTokensTensor = gpt2(inputTensor).slice(Axis[Batch] -> 0)
+            val nextToken = predTokensTensor.slice(Axis[Context] -> (currentTokenIds.length-1))
+            val nextTokens = currentTokenIds :+ nextToken.toInt
+            val decoded = tokenizer.decode(nextTokens)
+            LazyList.cons(decoded, loop(nextTokens))
         loop(tokenIds)
         
 
@@ -378,5 +395,5 @@ object GPT2Inference:
         val params = GPT2Params(wpe, wte, layers, ln_f)
         val gpt2 = GPT2(params)
         val inference = Inference(gpt2, Tokenizer(tiktoken.get_encoding("gpt2")))
-        // val stream = inference("Hello, my name is")
-        // stream.foreach(println)
+        val stream = inference("Hello, my name is Beni. Who ")
+        stream.foreach(println)
