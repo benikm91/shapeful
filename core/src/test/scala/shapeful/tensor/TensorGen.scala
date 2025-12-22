@@ -12,6 +12,9 @@ object TensorGen:
 
   def genData(n: Int)(min: Float, max: Float): Gen[Array[Float]] = Gen.listOfN(n, Gen.choose(min, max)).map(_.toArray)
 
+  def toBoolTensor[T <: Tuple: Labels](tensorsGen: Gen[(Tensor[T], Tensor[T])]): Gen[Tensor[T]] = for {
+    (v1, v2) <- tensorsGen
+  } yield (v1 <= v2).asType(DType.Bool)
   def tensor0Gen: Gen[Tensor0] = tensor0GenOf(-1.0f, 1.0f)
   def tensor0GenOf(min: Float, max: Float): Gen[Tensor0] = 
     for {

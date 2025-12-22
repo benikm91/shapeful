@@ -20,10 +20,6 @@ class TensorOpsElementwiseSuite extends AnyPropSpec with ScalaCheckPropertyCheck
   
   py.exec("import jax.numpy as jnp")
       
-  type A = "a"
-  type B = "b"
-  type C = "c"
-
   def check[T <: Tuple : Labels](gen: Gen[Tensor[T]], suffix: String)(pyCode: String, scOp: Tensor[T] => Tensor[T]) =
     property(s"$suffix Tensor[${summon[Labels[T]].names.mkString(", ")}]"):
       forAll(gen): t => 

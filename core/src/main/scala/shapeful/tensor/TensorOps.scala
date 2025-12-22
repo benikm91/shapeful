@@ -145,11 +145,10 @@ object TensorOps:
 
       // --- Argmin ---
       def argmin: Tensor0 = Tensor0(Jax.jnp.argmin(t.jaxValue))
-      def argmin[L : Label](axis: Axis[L])(using axisIndex: AxisIndex[T, L], remover: Remover[T, L]): Tensor[remover.Out] = Tensor(Jax.jnp.argmin(t.jaxValue, axis = axisIndex.value))
+      def argmin[L : Label, R <: Tuple](axis: Axis[L])(using axisIndex: AxisIndex[T, L], remover: Remover.Aux[T, L, R], labels: Labels[R]): Tensor[R] = Tensor(Jax.jnp.argmin(t.jaxValue, axis = axisIndex.value))
 
       def all: Boolean = Tensor0(Jax.jnp.all(t.jaxValue)).toBool
       def any: Boolean = Tensor0(Jax.jnp.any(t.jaxValue)).toBool
-      def equals(other: Tensor[T]): Boolean = Tensor0(Jax.jnp.equal(t.jaxValue, other.jaxValue)).toBool
       def approxEquals(other: Tensor[T], tolerance: Float = 1e-6f): Boolean = t.approxElementEquals(other, tolerance).all
       
   end Reduction
@@ -737,7 +736,6 @@ object TensorOps:
       ): Tensor[VmapAxis *: OuterShape] =
         val fpy = (jxpr: Jax.PyDynamic) =>
             val innerTensor = Tensor[R](jxpr)
-            println(("A", innerTensor.shape))
             val result = f(innerTensor)
             result.jaxValue
 
