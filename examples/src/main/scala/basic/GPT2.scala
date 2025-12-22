@@ -264,6 +264,7 @@ case class Inference(gpt2: GPT2, tokenizer: Tokenizer):
             val nextToken = predTokensTensor.slice(Axis[Context] -> (currentTokenIds.length-1))
             val nextTokens = currentTokenIds :+ nextToken.toInt
             val decoded = tokenizer.decode(nextTokens)
+            System.gc()
             LazyList.cons(decoded, loop(nextTokens))
         loop(tokenIds)
         
@@ -395,5 +396,6 @@ object GPT2Inference:
         val params = GPT2Params(wpe, wte, layers, ln_f)
         val gpt2 = GPT2(params)
         val inference = Inference(gpt2, Tokenizer(tiktoken.get_encoding("gpt2")))
-        val stream = inference("Hello, my name is Beni. Who ")
+        // val stream = inference("Hello, my name is Beni. Who ")
+        val stream = inference("Deep Learning is quite complicated. However, with the right tools, ")
         stream.foreach(println)

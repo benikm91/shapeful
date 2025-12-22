@@ -61,6 +61,7 @@ object TensorGen:
       t1 <- tensor1GenOfShape(len)(min, max) 
     } yield (t1, Tensor.fromPy(t1.jaxValue))
 
+  def tensor1GenWithShape(d1: Int): Gen[Tensor1[A]] = tensor1GenOfShape(d1)(-1.0f, 1.0f)
   def tensor1GenOfShape(d1: Int)(min: Float, max: Float): Gen[Tensor1[A]] = 
     for {
       data <- genData(d1)(min, max)
@@ -136,3 +137,15 @@ object TensorGen:
     for {
       data <- genData(d1 * d2 * d3)(min, max)
     } yield Tensor3(Shape(Axis[A] -> d1, Axis[B] -> d2, Axis[C] -> d3), data)
+
+  def fourTensor3Gen: Gen[(Tensor3[A, B, C], Tensor3[A, B, C], Tensor3[A, B, C], Tensor3[A, B, C])] = fourTensor3GenOf(-1.0f, 1.0f)
+  def fourTensor3GenOf(min: Float, max: Float): Gen[(Tensor3[A, B, C], Tensor3[A, B, C], Tensor3[A, B, C], Tensor3[A, B, C])] =
+    for {
+      d1 <- Gen.choose(1, 5)
+      d2 <- Gen.choose(1, 5)
+      d3 <- Gen.choose(1, 5)
+      t1 <- tensor3GenOfShape(d1, d2, d3)(min, max)
+      t2 <- tensor3GenOfShape(d1, d2, d3)(min, max)
+      t3 <- tensor3GenOfShape(d1, d2, d3)(min, max)
+      t4 <- tensor3GenOfShape(d1, d2, d3)(min, max)
+    } yield (t1, t2, t3, t4)
